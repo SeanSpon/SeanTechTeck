@@ -1,7 +1,7 @@
-# SeeZee Launcher - PC Connection Setup Guide
+# SEE STUDIO ZEE Launcher - PC Connection Setup Guide
 
 ## Overview
-SeeZee Launcher runs on your Raspberry Pi and connects to your gaming PC to stream games and access your Steam library remotely. This guide will walk you through setting up the connection between your Pi and PC.
+SEE STUDIO ZEE Launcher runs on your Raspberry Pi and connects to your gaming PC to stream games and access your Steam library remotely. This guide will walk you through setting up the connection between your Pi and PC.
 
 ---
 

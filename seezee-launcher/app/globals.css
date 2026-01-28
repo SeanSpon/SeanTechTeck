@@ -45,16 +45,22 @@ body {
 }
 
 /* Touch scrolling support (critical for touchscreen) */
-* {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+.touch-scroll {
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
-.touch-scroll {
+/* Force touch events to work */
+body, html {
+  touch-action: manipulation;
+}
+
+/* Make all scrollable areas work with touch */
+[style*="overflow-y: auto"], 
+[style*="overflow: auto"] {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  overflow-y: auto;
 }
 
 /* Smooth focus transitions for controller navigation */

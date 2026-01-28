@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test the full hub setup
 
-echo "🧪 SeeZee Hub Test Checklist"
+echo "🧪 SEE STUDIO ZEE Hub Test Checklist"
 echo "================================"
 echo ""
 

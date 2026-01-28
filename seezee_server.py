@@ -675,7 +675,7 @@ def get_devices():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("  SeeZee PC Server - Game Library Bridge v2.0")
+    print("  SEE STUDIO ZEE PC Server - Game Library Bridge v2.0")
     print("=" * 60)
     
     # Load configuration

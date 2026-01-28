@@ -32,8 +32,8 @@ export default function ReactiveBackground() {
     window.addEventListener("resize", resize)
 
     // Initialize particles
-    const colors = ["#e63946", "#ff4757", "#c1121f"]
-    const particleCount = 40 // Reduced for cleaner look
+    const colors = ["#1f232b", "#2a2f38", "#353c48"]
+    const particleCount = 22
 
     if (particlesRef.current.length === 0) {
       for (let i = 0; i < particleCount; i++) {
@@ -53,7 +53,7 @@ export default function ReactiveBackground() {
     // Animation loop
     let animationId: number
     const animate = () => {
-      ctx.fillStyle = "rgba(10, 10, 10, 0.08)"
+      ctx.fillStyle = "rgba(10, 10, 10, 0.12)"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       particlesRef.current.forEach((particle, i) => {
@@ -66,8 +66,8 @@ export default function ReactiveBackground() {
         // React to mouse
         if (distance < maxDistance) {
           const force = (maxDistance - distance) / maxDistance
-          particle.vx += (dx / distance) * force * 0.1
-          particle.vy += (dy / distance) * force * 0.1
+          particle.vx += (dx / distance) * force * 0.05
+          particle.vy += (dy / distance) * force * 0.05
         }
 
         // Gentle drift toward target
@@ -97,12 +97,12 @@ export default function ReactiveBackground() {
         }
 
         // Draw particle with glow
-        ctx.shadowBlur = 40
+        ctx.shadowBlur = 12
         ctx.shadowColor = particle.color
         ctx.fillStyle = particle.color
-        ctx.globalAlpha = 0.4
+        ctx.globalAlpha = 0.22
         ctx.beginPath()
-        ctx.arc(particle.x, particle.y, particle.size * 2, 0, Math.PI * 2)
+        ctx.arc(particle.x, particle.y, particle.size * 1.4, 0, Math.PI * 2)
         ctx.fill()
 
         // Draw connections to nearby particles
@@ -111,11 +111,11 @@ export default function ReactiveBackground() {
           const dy = particle.y - otherParticle.y
           const distance = Math.sqrt(dx * dx + dy * dy)
 
-          if (distance < 150) {
-            ctx.globalAlpha = (150 - distance) / 150 * 0.08
+          if (distance < 120) {
+            ctx.globalAlpha = (120 - distance) / 120 * 0.03
             ctx.strokeStyle = particle.color
-            ctx.lineWidth = 1
-            ctx.shadowBlur = 20
+            ctx.lineWidth = 0.6
+            ctx.shadowBlur = 8
             ctx.beginPath()
             ctx.moveTo(particle.x, particle.y)
             ctx.lineTo(otherParticle.x, otherParticle.y)
@@ -145,7 +145,7 @@ export default function ReactiveBackground() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none opacity-30"
+      className="fixed inset-0 pointer-events-none opacity-15"
       onMouseMove={handleMouseMove}
       style={{ zIndex: 0 }}
     />

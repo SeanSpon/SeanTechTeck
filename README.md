@@ -1,4 +1,4 @@
-# SeeZee Desktop Pi Hub
+# SEE STUDIO ZEE Desktop Pi Hub
 
 Game launcher interface for Raspberry Pi that connects to your gaming PC to access and launch Steam games remotely.
 
@@ -14,7 +14,7 @@ Game launcher interface for Raspberry Pi that connects to your gaming PC to acce
 
 ## 🚀 Quick Start
 
-### For the Raspberry Pi (SeeZee Launcher):
+### For the Raspberry Pi (SEE STUDIO ZEE Launcher):
 
 1. Navigate to the launcher directory:
 ```bash

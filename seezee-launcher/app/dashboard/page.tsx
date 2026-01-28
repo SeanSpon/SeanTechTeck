@@ -88,32 +88,31 @@ export default function Dashboard() {
       
       <TopBar />
       
-      <main className="relative flex-1 flex flex-col items-center justify-center px-8 z-10">
-        {/* Main Dashboard */}
-        <div className="w-full max-w-5xl space-y-8 animate-fade-zoom-in">
+      <main className="relative flex-1 flex flex-col items-center justify-center px-6 z-10 overflow-y-auto touch-scroll">
+        <div className="w-full max-w-5xl space-y-6">
           {/* Welcome Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-6xl font-bold text-white mb-4 text-neon-glow">
-              SeeZee Hub
+          <div className="text-center mb-6">
+            <h1 className="text-5xl font-bold text-white mb-2 text-neon-glow">
+              See<span className="text-seezee-red">Zee</span> Hub
             </h1>
-            <p className="text-white/60 text-xl">
-              {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+            <p className="text-white/60 text-lg">
+              {isConnected ? '🟢 Connected' : '🔴 Offline'}
             </p>
           </div>
 
           {/* Quick Access Row */}
           {quickAccess.length > 0 && (
-            <div className="mb-8">
-              <h3 className="text-white/70 text-sm uppercase tracking-wider mb-3 px-2">Quick Access</h3>
+            <div className="mb-6">
+              <h3 className="text-white/70 text-xs uppercase tracking-wider mb-2">Quick Access</h3>
               <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
                 {quickAccess.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => handleQuickLaunch(item)}
-                    className="flex-shrink-0 glass rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-all duration-300 hover:scale-105 min-w-[120px]"
+                    className="flex-shrink-0 glass rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-all duration-200 min-w-[100px]"
                   >
-                    <div className="text-4xl mb-2">{item.icon}</div>
-                    <div className="text-white text-sm font-medium">{item.title}</div>
+                    <div className="text-3xl mb-1">{item.icon}</div>
+                    <div className="text-white text-xs font-medium">{item.title}</div>
                   </button>
                 ))}
               </div>
@@ -122,43 +121,32 @@ export default function Dashboard() {
 
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-300 hover:scale-105 cursor-pointer">
-              <div className="text-5xl font-bold text-seezee-red mb-2">
+            <div className="glass rounded-xl p-3 border border-white/5">
+              <div className="text-2xl font-bold text-seezee-red">
                 {stats.totalGames}
               </div>
-              <div className="text-white/60 text-sm uppercase tracking-wider">
-                Total Items
-              </div>
+              <div className="text-white/50 text-xs">Total</div>
             </div>
 
-            <div className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-300 hover:scale-105 cursor-pointer"
-                 onClick={() => router.push('/library')}>
-              <div className="text-5xl font-bold text-seezee-red mb-2">
+            <div className="glass rounded-xl p-3 border border-white/5">
+              <div className="text-2xl font-bold text-seezee-red">
                 {stats.steamGames}
               </div>
-              <div className="text-white/60 text-sm uppercase tracking-wider">
-                Steam Games
-              </div>
+              <div className="text-white/50 text-xs">Steam</div>
             </div>
 
-            <div className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-300 hover:scale-105 cursor-pointer"
-                 onClick={() => router.push('/library')}>
-              <div className="text-5xl font-bold text-purple-400 mb-2">
+            <div className="glass rounded-xl p-3 border border-white/5">
+              <div className="text-2xl font-bold text-seezee-red">
                 {stats.localApps}
               </div>
-              <div className="text-white/60 text-sm uppercase tracking-wider">
-                Local Apps
-              </div>
+              <div className="text-white/50 text-xs">Apps</div>
             </div>
 
-            <div className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-300 hover:scale-105 cursor-pointer"
-                 onClick={() => router.push('/library')}>
-              <div className="text-5xl font-bold text-blue-400 mb-2">
+            <div className="glass rounded-xl p-3 border border-white/5">
+              <div className="text-2xl font-bold text-purple-400">
                 {stats.tools}
               </div>
-              <div className="text-white/60 text-sm uppercase tracking-wider">
-                Tools
-              </div>
+              <div className="text-white/50 text-xs">Tools</div>
             </div>
           </div>
 
@@ -166,40 +154,40 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
             <button
               onClick={() => router.push('/library')}
-              className="glass rounded-3xl p-10 border border-seezee-red/30 hover:bg-seezee-red/10 transition-all duration-300 hover:scale-105 text-left group"
+              className="glass rounded-2xl p-6 border border-seezee-red/30 hover:bg-seezee-red/10 transition-all duration-200 text-left"
             >
-              <div className="text-6xl mb-4">🎮</div>
-              <h2 className="text-3xl font-bold text-white mb-2 group-hover:text-neon-glow transition-all">
-                Game Library
+              <div className="text-4xl mb-2">🎮</div>
+              <h2 className="text-2xl font-bold text-white mb-1">
+                Library
               </h2>
-              <p className="text-white/60">
-                Browse and launch all your games and applications
+              <p className="text-white/60 text-sm">
+                {stats.totalGames} games
               </p>
             </button>
 
             <button
               onClick={() => router.push('/monitor')}
-              className="glass rounded-3xl p-10 border border-blue-500/30 hover:bg-blue-500/10 transition-all duration-300 hover:scale-105 text-left group"
+              className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-200 text-left"
             >
-              <div className="text-6xl mb-4">📊</div>
-              <h2 className="text-3xl font-bold text-white mb-2 group-hover:text-neon-glow transition-all">
-                System Monitor
+              <div className="text-4xl mb-2">📊</div>
+              <h2 className="text-2xl font-bold text-white mb-1">
+                Monitor
               </h2>
-              <p className="text-white/60">
-                Real-time CPU, GPU, RAM stats for all your devices
+              <p className="text-white/60 text-sm">
+                System stats
               </p>
             </button>
 
             <button
               onClick={() => router.push('/settings')}
-              className="glass rounded-3xl p-10 border border-white/10 hover:bg-white/5 transition-all duration-300 hover:scale-105 text-left group"
+              className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-200 text-left"
             >
-              <div className="text-6xl mb-4">⚙️</div>
-              <h2 className="text-3xl font-bold text-white mb-2 group-hover:text-neon-glow transition-all">
+              <div className="text-4xl mb-2">⚙️</div>
+              <h2 className="text-2xl font-bold text-white mb-1">
                 Settings
               </h2>
-              <p className="text-white/60">
-                Configure connection and customize your launcher
+              <p className="text-white/60 text-sm">
+                Configure
               </p>
             </button>
           </div>

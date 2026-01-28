@@ -84,22 +84,8 @@ export default function StartupScreen({
               letterSpacing: "0.05em",
             }}
           >
-            SeeZee
+            SEE <span className="px-3 py-1 bg-seezee-red text-white rounded inline-block mx-2">STUDIO</span> ZEE
           </h1>
-        </div>
-
-        {/* Subtitle with staggered animation */}
-        <div
-          className={`text-xl text-white/80 font-light animate-startup-subtitle ${
-            phase === "fade"
-              ? "opacity-0 transition-opacity duration-800"
-              : ""
-          }`}
-          style={{
-            textShadow: "0 0 10px rgba(230, 57, 70, 0.3)",
-          }}
-        >
-          <span className="text-seezee-green">Studios</span>
         </div>
 
         {/* Loading indicator */}
@@ -111,19 +97,19 @@ export default function StartupScreen({
           }`}
         >
           <div
-            className="w-2 h-2 rounded-full bg-seezee-green"
+            className="w-2 h-2 rounded-full bg-seezee-red"
             style={{
               animation: "startup-dot 1.4s infinite",
             }}
           ></div>
           <div
-            className="w-2 h-2 rounded-full bg-seezee-cyan"
+            className="w-2 h-2 rounded-full bg-seezee-red-bright"
             style={{
               animation: "startup-dot 1.4s infinite 0.2s",
             }}
           ></div>
           <div
-            className="w-2 h-2 rounded-full bg-seezee-green"
+            className="w-2 h-2 rounded-full bg-seezee-red"
             style={{
               animation: "startup-dot 1.4s infinite 0.4s",
             }}

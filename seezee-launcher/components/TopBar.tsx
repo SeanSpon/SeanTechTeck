@@ -41,15 +41,8 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
           onClick={() => router.push('/dashboard')}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"
         >
-          <div className="w-12 h-12 rounded-xl overflow-hidden shadow-glow-sm">
-            <img 
-              src="/seezee-logo.png" 
-              alt="SeeZee Logo" 
-              className="w-full h-full object-contain"
-            />
-          </div>
           <h1 className="text-white font-bold text-2xl tracking-tight">
-            SeeZee<span className="text-seezee-red">Launcher</span>
+            See<span className="text-seezee-red">Zee</span> Hub
           </h1>
         </button>
 
@@ -81,7 +74,7 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
       </div>
 
       {/* Status indicators */}
-      <div className="relative flex items-center gap-6 animate-fade-zoom-in stagger-2">
+      <div className="relative flex items-center gap-5 animate-fade-zoom-in stagger-2">
         {/* Connection Status */}
         <button
           onClick={() => router.push('/settings')}
@@ -96,17 +89,20 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
         {/* Time */}
         <span className="text-white/70 font-mono text-lg">{time}</span>
 
+        {/* Logo / PFP */}
+        <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 bg-white/5 shadow-glow-sm">
+          <img
+            src="/seezee-logo.png"
+            alt="SeeZee Logo"
+            className="w-full h-full object-contain"
+          />
+        </div>
+
         {/* Theme Selector */}
         <div className="relative">
           <button
             onClick={() => setShowThemeMenu(!showThemeMenu)}
-            className="
-              w-12 h-12 rounded-xl bg-white/5 hover:bg-white/10
-              flex items-center justify-center
-              transition-all duration-300
-              focus:outline-none focus-visible:ring-2 focus-visible:ring-seezee-red
-              hover:shadow-glow-sm hover:scale-105
-            "
+            className="w-12 h-12 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-seezee-red hover:shadow-glow-sm hover:scale-105"
             aria-label="Change theme"
           >
             <svg

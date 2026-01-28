@@ -51,7 +51,7 @@ export default function SystemMonitor() {
   const getStatusColor = (percent: number) => {
     if (percent >= 90) return 'text-red-400'
     if (percent >= 70) return 'text-yellow-400'
-    return 'text-green-400'
+    return 'text-seezee-red'
   }
 
   return (
@@ -60,38 +60,37 @@ export default function SystemMonitor() {
       
       <TopBar />
       
-      <main className="relative flex-1 flex flex-col overflow-hidden z-10">
+      <main className="relative flex-1 overflow-y-auto overflow-x-hidden touch-scroll z-10">
         {/* Header */}
-        <div className="flex-shrink-0 px-8 py-6 animate-slide-in-up">
+        <div className="flex-shrink-0 px-6 py-4 sticky top-0 bg-seezee-dark/95 backdrop-blur-md border-b border-white/5 z-20">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-seezee-red hover:text-seezee-red-bright transition-colors mb-4 text-sm font-medium"
+            className="text-seezee-red hover:text-seezee-red-bright transition-colors mb-2 text-sm font-medium"
           >
-            ← Back to Dashboard
+            ← Back
           </button>
           
-          <h2 className="text-white/90 text-4xl font-bold">System Monitor</h2>
-          <p className="text-white/50 mt-1">
-            {devices.length} device{devices.length !== 1 ? 's' : ''} configured
-            {isLoading && <span className="text-seezee-red ml-2">• Loading...</span>}
+          <h2 className="text-white/90 text-3xl font-bold">Monitor</h2>
+          <p className="text-white/50 text-sm">
+            {devices.length} device{devices.length !== 1 ? 's' : ''}
           </p>
         </div>
 
         {/* Device Grid */}
-        <div className="flex-1 overflow-y-auto touch-scroll px-8 pb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="px-6 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {devices.map((device) => (
               <div
                 key={device.id}
-                className="glass rounded-2xl p-6 border border-white/10 hover:bg-white/5 transition-all duration-300"
+                className="glass rounded-xl p-4 border border-white/10"
               >
                 {/* Device Header */}
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="text-white font-bold text-xl">{device.name}</h3>
-                    <p className="text-white/50 text-sm">{device.ip}</p>
+                    <h3 className="text-white font-bold text-lg">{device.name}</h3>
+                    <p className="text-white/50 text-xs">{device.ip}</p>
                   </div>
-                  <div className={`w-3 h-3 rounded-full ${device.online ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+                  <div className={`w-2 h-2 rounded-full ${device.online ? 'bg-seezee-red animate-pulse' : 'bg-white/30'}`} />
                 </div>
 
                 {/* Stats */}
@@ -99,74 +98,57 @@ export default function SystemMonitor() {
                   <div className="space-y-4">
                     {/* CPU */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white/70 text-sm">CPU</span>
-                        <span className={`font-bold ${getStatusColor(device.stats.cpu.usage)}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-white/70 text-xs">CPU</span>
+                        <span className={`font-bold text-sm ${getStatusColor(device.stats.cpu.usage)}`}>
                           {device.stats.cpu.usage}%
                         </span>
                       </div>
-                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-seezee-red transition-all duration-300"
                           style={{ width: `${device.stats.cpu.usage}%` }}
                         />
                       </div>
-                      <p className="text-white/40 text-xs mt-1">{device.stats.cpu.cores} cores</p>
                     </div>
 
                     {/* Memory */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white/70 text-sm">Memory</span>
-                        <span className={`font-bold ${getStatusColor(device.stats.memory.percent)}`}>
-                          {device.stats.memory.used} / {device.stats.memory.total} GB
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-white/70 text-xs">RAM</span>
+                        <span className={`font-bold text-sm ${getStatusColor(device.stats.memory.percent)}`}>
+                          {device.stats.memory.used}GB / {device.stats.memory.total}GB
                         </span>
                       </div>
-                      <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-purple-500 transition-all duration-300"
                           style={{ width: `${device.stats.memory.percent}%` }}
                         />
                       </div>
-                      <p className="text-white/40 text-xs mt-1">{device.stats.memory.percent}% used</p>
                     </div>
 
                     {/* GPU (if available) */}
                     {device.stats.gpu && (
                       <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-white/70 text-sm">GPU</span>
-                          <span className={`font-bold ${getStatusColor(device.stats.gpu.usage)}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-white/70 text-xs">GPU</span>
+                          <span className={`font-bold text-sm ${getStatusColor(device.stats.gpu.usage)}`}>
                             {device.stats.gpu.usage}%
                           </span>
                         </div>
-                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-blue-500 transition-all duration-300"
                             style={{ width: `${device.stats.gpu.usage}%` }}
                           />
                         </div>
-                        <p className="text-white/40 text-xs mt-1">
-                          {device.stats.gpu.memory.used} / {device.stats.gpu.memory.total} GB VRAM
-                        </p>
                       </div>
                     )}
-
-                    {/* Network */}
-                    <div className="flex justify-between text-xs">
-                      <div>
-                        <span className="text-white/50">↑ </span>
-                        <span className="text-white/70">{device.stats.network.sent} GB</span>
-                      </div>
-                      <div>
-                        <span className="text-white/50">↓ </span>
-                        <span className="text-white/70">{device.stats.network.recv} GB</span>
-                      </div>
-                    </div>
                   </div>
                 ) : (
-                  <div className="text-white/30 text-center py-8">
-                    {device.online ? 'No stats available' : 'Device offline'}
+                  <div className="text-white/30 text-center py-4 text-sm">
+                    {device.online ? 'No stats' : 'Offline'}
                   </div>
                 )}
               </div>
@@ -191,8 +173,8 @@ export default function SystemMonitor() {
         </div>
       </main>
 
-      <footer className="relative flex-shrink-0 px-8 py-4 text-center text-white/30 text-sm z-10">
-        Stats update every 2 seconds • Tap device for details
+      <footer className="relative flex-shrink-0 px-6 py-2 text-center text-white/30 text-xs z-10">
+        Updates every 2s
       </footer>
     </div>
   )

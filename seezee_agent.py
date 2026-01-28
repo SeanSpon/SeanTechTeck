@@ -1,5 +1,5 @@
 """
-SeeZee System Monitor Agent
+SEE STUDIO ZEE System Monitor Agent
 Lightweight background service that exposes system stats via HTTP
 
 Install: pip install psutil flask flask-cors
@@ -132,7 +132,7 @@ def health():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("  SeeZee System Monitor Agent")
+    print("  SEE STUDIO ZEE System Monitor Agent")
     print("=" * 60)
     print(f"\n📊 Hostname: {get_hostname()}")
     print(f"🌐 IP Address: {get_local_ip()}")

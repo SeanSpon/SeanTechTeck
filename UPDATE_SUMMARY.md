@@ -1,4 +1,4 @@
-# SeeZee Launcher - Major Update Summary 🔥
+# SEE STUDIO ZEE Launcher - Major Update Summary 🔥
 
 ## ✅ What Was Fixed
 

@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/lib/themeContext"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "SeeZee Launcher",
+  title: "SEE STUDIO ZEE Launcher",
   description: "Steam-Deck-style tablet game launcher for Raspberry Pi",
 }
 
