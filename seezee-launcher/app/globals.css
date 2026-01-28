@@ -32,7 +32,25 @@
 html,
 body {
   @apply bg-seezee-dark text-white antialiased;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+/* Main scroll container - single source of scrolling */
+.main-scroll {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none; /* Firefox */
+}
+
+.main-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
 }
 
 /* Prevent text selection on UI elements but allow on inputs */
@@ -88,27 +106,12 @@ body, html {
 /* Button and interactive element base styles */
 button,
 a {
-  @apply transition-all duration-300 ease-out;
+  @apply transition-all duration-200 ease-out;
 }
 
 /* Selection color */
 ::selection {
-  @apply bg-seezee-red/20 text-white;
-}
-
-/* Glass morphism effect - darker */
-.glass {
-  background: rgba(26, 26, 26, 0.6);
-  backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Neon glow text effect */
-.text-neon-glow {
-  text-shadow: 
-    0 0 10px currentColor,
-    0 0 20px currentColor,
-    0 0 40px currentColor;
+  @apply bg-seezee-red/30 text-white;
 }
 
 /* =====================================================

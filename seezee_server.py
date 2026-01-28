@@ -162,6 +162,7 @@ def scan_steam_games(library_path):
                         'title': game_name,
                         'steamAppId': app_id,
                         'source': 'steam',
+                        'type': 'game',  # Steam games are always games
                         'installDir': install_dir,
                         'coverImage': f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900.jpg"
                     })
@@ -170,6 +171,41 @@ def scan_steam_games(library_path):
             print(f"Error reading manifest {file}: {e}")
     
     return games
+
+def classify_executable(filename, filepath):
+    """Classify an executable as game, app, tool, or hidden based on patterns"""
+    lower = filename.lower()
+    
+    # Hidden patterns (launchers, utilities, services)
+    hidden_patterns = [
+        'unins', 'uninst', 'uninstall',
+        'crash', 'crashhandler', 'crashreport',
+        'redist', 'vcredist', 'directx', 'dxsetup',
+        'ue4prereq', 'dotnet', 'setup', 'prerequisites',
+        'helper', 'service', 'updater', 'update',
+        'battleye', 'easyanticheat', 'eac',
+        'launcher', 'bootstrap', 'install',
+        'config', 'settings', 'patcher', 'repair'
+    ]
+    
+    # Tool patterns (utilities you want to see but separate)
+    tool_patterns = [
+        'benchmark', 'editor', 'modtool', 'server',
+        'dedicated', 'admin', 'console'
+    ]
+    
+    # Check if should be hidden
+    for pattern in hidden_patterns:
+        if pattern in lower:
+            return 'hidden'
+    
+    # Check if it's a tool
+    for pattern in tool_patterns:
+        if pattern in lower:
+            return 'tool'
+    
+    # Default: game or app based on context
+    return 'game'
 
 def scan_folder_for_games(folder_config):
     """Scan a custom folder for .exe files (games or tools)"""
@@ -183,7 +219,7 @@ def scan_folder_for_games(folder_config):
         print(f"Folder does not exist: {folder_path}")
         return games
     
-    # Patterns to ignore
+    # Deprecated - moved to classify_executable function
     ignore_patterns = [
         'unins', 'uninst', 'uninstall',
         'crash', 'crashhandler', 'crashreport',
@@ -193,11 +229,8 @@ def scan_folder_for_games(folder_config):
     ]
     
     def should_ignore(filename):
-        lower = filename.lower()
-        for pattern in ignore_patterns:
-            if pattern in lower:
-                return True
-        return False
+        """Legacy function - now uses classify_executable"""
+        return classify_executable(filename, '') == 'hidden'
     
     def title_from_filename(filename):
         # Remove .exe and clean up
@@ -222,7 +255,11 @@ def scan_folder_for_games(folder_config):
             full_path = os.path.join(path, entry)
             
             if os.path.isfile(full_path) and entry.lower().endswith('.exe'):
-                if should_ignore(entry):
+                # Classify the executable
+                exe_type = classify_executable(entry, full_path)
+                
+                # Skip hidden items
+                if exe_type == 'hidden':
                     continue
                 
                 # Check file size (skip tiny exe files < 1MB)
@@ -236,10 +273,19 @@ def scan_folder_for_games(folder_config):
                 # Generate stable ID from path
                 path_hash = hashlib.md5(full_path.encode()).hexdigest()[:12]
                 
+                # Determine source based on classification and folder type
+                if exe_type == 'tool':
+                    source = 'tool'
+                elif folder_type == 'tools':
+                    source = 'tool'
+                else:
+                    source = 'local'
+                
                 games.append({
                     'id': f"{folder_type}_{path_hash}",
                     'title': title_from_filename(entry),
-                    'source': 'tool' if folder_type == 'tools' else 'local',
+                    'source': source,
+                    'type': exe_type,  # New field for filtering
                     'execPath': full_path,
                     'folderSource': folder_id
                 })

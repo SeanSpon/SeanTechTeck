@@ -20,11 +20,11 @@
   ],
   "steamLibraries": [],
   "theme": {
-    "name": "Chill Blue",
+    "name": "Mint Green",
     "rgb": {
-      "r": 30,
-      "g": 144,
-      "b": 255
+      "r": 50,
+      "g": 205,
+      "b": 50
     },
     "brightness": 80,
     "sync": {
@@ -32,7 +32,7 @@
       "govee": true,
       "lan": true
     },
-    "lastUpdated": "2026-01-28T14:36:31.901243"
+    "lastUpdated": "2026-01-28T14:59:57.587147"
   },
   "govee": {
     "enabled": true,
