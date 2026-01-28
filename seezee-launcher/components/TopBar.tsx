@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { useTheme, themes } from "@/lib/themeContext"
 import { useConnectionStore } from "@/lib/connectionStore"
 
@@ -9,6 +10,8 @@ interface TopBarProps {
 }
 
 export default function TopBar({ onOpenSettings }: TopBarProps) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [time, setTime] = useState<string>("")
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const { theme, setTheme } = useTheme()
@@ -33,24 +36,55 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
   return (
     <header className="relative flex items-center justify-between px-8 py-4 backdrop-blur-md border-b border-white/5 glass animate-slide-in-up">
       {/* Logo / Title */}
-      <div className="relative flex items-center gap-3 animate-fade-zoom-in">
-        <div className="w-12 h-12 rounded-xl overflow-hidden shadow-glow-sm">
-          <img 
-            src="/seezee-logo.png" 
-            alt="SeeZee Logo" 
-            className="w-full h-full object-contain"
-          />
-        </div>
-        <h1 className="text-white font-bold text-2xl tracking-tight">
-          SeeZee<span className="text-seezee-red">Launcher</span>
-        </h1>
+      <div className="relative flex items-center gap-6 animate-fade-zoom-in">
+        <button 
+          onClick={() => router.push('/dashboard')}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+        >
+          <div className="w-12 h-12 rounded-xl overflow-hidden shadow-glow-sm">
+            <img 
+              src="/seezee-logo.png" 
+              alt="SeeZee Logo" 
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <h1 className="text-white font-bold text-2xl tracking-tight">
+            SeeZee<span className="text-seezee-red">Launcher</span>
+          </h1>
+        </button>
+
+        {/* Navigation */}
+        <nav className="flex gap-2 ml-6">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className={`
+              px-4 py-2 rounded-lg font-medium transition-all duration-300
+              ${pathname === '/dashboard' 
+                ? 'bg-seezee-red text-white shadow-glow-sm' 
+                : 'text-white/60 hover:text-white hover:bg-white/5'}
+            `}
+          >
+            Home
+          </button>
+          <button
+            onClick={() => router.push('/library')}
+            className={`
+              px-4 py-2 rounded-lg font-medium transition-all duration-300
+              ${pathname === '/library' 
+                ? 'bg-seezee-red text-white shadow-glow-sm' 
+                : 'text-white/60 hover:text-white hover:bg-white/5'}
+            `}
+          >
+            Library
+          </button>
+        </nav>
       </div>
 
       {/* Status indicators */}
       <div className="relative flex items-center gap-6 animate-fade-zoom-in stagger-2">
         {/* Connection Status */}
         <button
-          onClick={onOpenSettings}
+          onClick={() => router.push('/settings')}
           className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
         >
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-seezee-red animate-pulse' : 'bg-white/30'}`} />

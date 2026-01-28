@@ -12,20 +12,33 @@ interface GameTileProps {
 export default function GameTile({ game, onPlay, index = 0 }: GameTileProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [isFocused, setIsFocused] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   const isActive = isHovered || isFocused
+
+  // Get Steam cover image if available
+  const getSteamImage = () => {
+    if (game.steamAppId && !imageError) {
+      return `https://cdn.cloudflare.steamstatic.com/steam/apps/${game.steamAppId}/library_600x900.jpg`
+    }
+    return null
+  }
+
+  const steamImage = getSteamImage()
+  const hasImage = steamImage && !imageError
 
   return (
     <button
       className={`
-        relative flex-shrink-0 w-48 h-72 rounded-2xl overflow-hidden
+        relative w-full aspect-[2/3] rounded-2xl overflow-hidden
         transition-all duration-300 ease-out
-        focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent
+        focus:outline-none focus-visible:ring-4 focus-visible:ring-seezee-red focus-visible:ring-offset-2 focus-visible:ring-offset-transparent
         animate-fade-zoom-in stagger-${Math.min(index + 1, 8)}
-        ${isActive ? "scale-110 z-10" : "scale-100"}
+        ${isActive ? "scale-105 z-10" : "scale-100"}
+        min-h-[240px]
       `}
       style={{ 
-        background: game.cover,
+        background: hasImage ? '#1a1a1a' : game.cover,
         boxShadow: isActive 
           ? "0 0 30px rgba(230, 57, 70, 0.6), 0 20px 60px rgba(0, 0, 0, 0.8)" 
           : "0 4px 20px rgba(0, 0, 0, 0.5)"
@@ -35,9 +48,21 @@ export default function GameTile({ game, onPlay, index = 0 }: GameTileProps) {
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
       onClick={() => onPlay?.(game)}
+      onTouchStart={() => setIsFocused(true)}
+      onTouchEnd={() => setIsFocused(false)}
       tabIndex={0}
       aria-label={`Play ${game.name}`}
     >
+      {/* Steam Image */}
+      {hasImage && (
+        <img
+          src={steamImage}
+          alt={game.name}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={() => setImageError(true)}
+        />
+      )}
+
       {/* Gradient overlay for text readability */}
       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
       

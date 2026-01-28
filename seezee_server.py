@@ -5,6 +5,8 @@ import json
 import subprocess
 import hashlib
 import uuid
+import re
+from datetime import datetime
 
 try:
     import winreg  # Windows only

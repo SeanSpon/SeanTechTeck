@@ -17,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-seezee-dark min-h-screen`}>
+      <body className={`${inter.className} bg-seezee-dark h-screen w-screen overflow-hidden touch-pan-y`}>
         <ThemeProvider>
           {children}
         </ThemeProvider>

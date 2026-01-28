@@ -1,5 +1,14 @@
 {
   "port": 5555,
-  "folders": [],
+  "folders": [
+    {
+      "id": "a15a902f-56ed-4c69-8eaf-92c0315338db",
+      "label": "Steam",
+      "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common",
+      "type": "games",
+      "scanDepth": 2,
+      "enabled": true
+    }
+  ],
   "steamLibraries": []
 }

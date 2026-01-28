@@ -44,6 +44,19 @@ body {
   display: none;
 }
 
+/* Touch scrolling support (critical for touchscreen) */
+* {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  overflow-y: auto;
+}
+
 /* Smooth focus transitions for controller navigation */
 *:focus-visible {
   @apply outline-none ring-2 ring-seezee-red ring-offset-2 ring-offset-seezee-dark;
