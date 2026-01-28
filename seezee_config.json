@@ -10,5 +10,62 @@
       "enabled": true
     }
   ],
-  "steamLibraries": []
+  "steamLibraries": [],
+  "manualApps": [
+    {
+      "id": "app_chrome",
+      "title": "Google Chrome",
+      "category": "quick",
+      "icon": "🌐",
+      "launchType": "url",
+      "launchValue": "https://www.google.com",
+      "enabled": true
+    },
+    {
+      "id": "app_vscode",
+      "title": "VS Code",
+      "category": "tools",
+      "icon": "💻",
+      "launchType": "cmd",
+      "launchValue": "code",
+      "enabled": true
+    }
+  ],
+  "manualUrls": [
+    {
+      "id": "url_roblox",
+      "title": "Roblox",
+      "category": "quick",
+      "icon": "🎮",
+      "url": "https://www.roblox.com/home",
+      "enabled": true
+    },
+    {
+      "id": "url_youtube",
+      "title": "YouTube",
+      "category": "web",
+      "icon": "📺",
+      "url": "https://www.youtube.com",
+      "enabled": true
+    }
+  ],
+  "devices": [
+    {
+      "id": "device_main_pc",
+      "name": "Main PC",
+      "type": "pc",
+      "ip": "10.34.43.145",
+      "port": 7777,
+      "enabled": true,
+      "monitorStats": true
+    }
+  ],
+  "govee": {
+    "enabled": false,
+    "devices": []
+  },
+  "signalrgb": {
+    "enabled": false,
+    "pcEndpoint": "http://10.34.43.145:8888"
+  }
 }

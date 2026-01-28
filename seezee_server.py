@@ -476,8 +476,198 @@ def get_config():
     return jsonify({
         'folders': config.get('folders', []),
         'steamLibraries': find_steam_libraries(),
+        'manualApps': config.get('manualApps', []),
+        'manualUrls': config.get('manualUrls', []),
+        'devices': config.get('devices', []),
         'platform': 'windows' if WINDOWS else 'linux'
     })
+
+@app.route('/api/quick-access', methods=['GET'])
+def get_quick_access():
+    """Get quick access items (manual apps + URLs marked as 'quick')"""
+    quick_items = []
+    
+    # Manual apps with quick category
+    for app in config.get('manualApps', []):
+        if app.get('enabled', True) and app.get('category') == 'quick':
+            quick_items.append({
+                'id': app['id'],
+                'title': app['title'],
+                'icon': app.get('icon', '📱'),
+                'type': 'app',
+                'launchType': app['launchType'],
+                'launchValue': app['launchValue']
+            })
+    
+    # Manual URLs with quick category
+    for url in config.get('manualUrls', []):
+        if url.get('enabled', True) and url.get('category') == 'quick':
+            quick_items.append({
+                'id': url['id'],
+                'title': url['title'],
+                'icon': url.get('icon', '🌐'),
+                'type': 'url',
+                'url': url['url']
+            })
+    
+    return jsonify({'items': quick_items})
+
+@app.route('/api/launch-app', methods=['POST'])
+def launch_app():
+    """Launch a manual app or URL from config"""
+    data = request.json
+    app_id = data.get('id')
+    
+    if not app_id:
+        return jsonify({'error': 'No app ID provided'}), 400
+    
+    # Check manual apps
+    for app in config.get('manualApps', []):
+        if app['id'] == app_id:
+            launch_type = app['launchType']
+            launch_value = app['launchValue']
+            
+            try:
+                if launch_type == 'url':
+                    # Open URL in default browser
+                    if WINDOWS:
+                        os.system(f'start "" "{launch_value}"')
+                    else:
+                        os.system(f'xdg-open "{launch_value}"')
+                elif launch_type == 'cmd':
+                    # Execute command
+                    subprocess.Popen(launch_value, shell=True, start_new_session=True)
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Launched {app["title"]}'
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+    
+    # Check manual URLs
+    for url in config.get('manualUrls', []):
+        if url['id'] == app_id:
+            try:
+                if WINDOWS:
+                    os.system(f'start "" "{url["url"]}"')
+                else:
+                    os.system(f'xdg-open "{url["url"]}"')
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Opened {url["title"]}'
+                })
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+    
+    return jsonify({'error': f'App/URL not found: {app_id}'}), 404
+
+@app.route('/api/system-stats', methods=['GET'])
+def get_system_stats():
+    """Get system stats for this PC"""
+    try:
+        import psutil
+        
+        # CPU
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        cpu_count = psutil.cpu_count()
+        
+        # Memory
+        mem = psutil.virtual_memory()
+        
+        # Disk
+        disk = psutil.disk_usage('/')
+        
+        # Network
+        net = psutil.net_io_counters()
+        
+        stats = {
+            'hostname': os.environ.get('COMPUTERNAME', os.environ.get('HOSTNAME', 'Unknown')),
+            'platform': 'windows' if WINDOWS else 'linux',
+            'cpu': {
+                'usage': cpu_percent,
+                'cores': cpu_count
+            },
+            'memory': {
+                'used': round(mem.used / (1024**3), 2),
+                'total': round(mem.total / (1024**3), 2),
+                'percent': mem.percent
+            },
+            'disk': {
+                'used': round(disk.used / (1024**3), 2),
+                'total': round(disk.total / (1024**3), 2),
+                'percent': disk.percent
+            },
+            'network': {
+                'sent': round(net.bytes_sent / (1024**2), 2),
+                'recv': round(net.bytes_recv / (1024**2), 2)
+            }
+        }
+        
+        # Try to get GPU stats (optional)
+        try:
+            # This will only work if nvidia-ml-py3 is installed
+            import pynvml
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            gpu_util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            gpu_mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            
+            stats['gpu'] = {
+                'usage': gpu_util.gpu,
+                'memory': {
+                    'used': round(gpu_mem.used / (1024**3), 2),
+                    'total': round(gpu_mem.total / (1024**3), 2)
+                }
+            }
+            pynvml.nvmlShutdown()
+        except:
+            pass
+        
+        return jsonify(stats)
+    
+    except ImportError:
+        return jsonify({'error': 'psutil not installed. Run: pip install psutil'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/devices', methods=['GET'])
+def get_devices():
+    """Get all configured devices and their status"""
+    devices = config.get('devices', [])
+    device_stats = []
+    
+    for device in devices:
+        if not device.get('enabled', True):
+            continue
+        
+        device_info = {
+            'id': device['id'],
+            'name': device['name'],
+            'type': device['type'],
+            'ip': device['ip'],
+            'online': False,
+            'stats': None
+        }
+        
+        # Try to fetch stats if monitoring is enabled
+        if device.get('monitorStats', False):
+            try:
+                import requests
+                response = requests.get(
+                    f"http://{device['ip']}:{device.get('port', 7777)}/stats",
+                    timeout=2
+                )
+                if response.status_code == 200:
+                    device_info['online'] = True
+                    device_info['stats'] = response.json()
+            except:
+                pass
+        
+        device_stats.append(device_info)
+    
+    return jsonify({'devices': device_stats})
 
 # ============================================================
 # STARTUP
