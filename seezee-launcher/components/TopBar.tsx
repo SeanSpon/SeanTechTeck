@@ -34,24 +34,24 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
   }, [])
 
   return (
-    <header className="relative flex items-center justify-between px-8 py-4 backdrop-blur-md border-b border-white/5 glass animate-slide-in-up">
+    <header className="relative flex items-center justify-between px-4 py-2 backdrop-blur-md border-b border-white/5 glass animate-slide-in-up">
       {/* Logo / Title */}
-      <div className="relative flex items-center gap-6 animate-fade-zoom-in">
+      <div className="relative flex items-center gap-3 animate-fade-zoom-in">
         <button 
           onClick={() => router.push('/dashboard')}
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
-          <h1 className="text-white font-bold text-2xl tracking-tight">
-            See<span className="text-seezee-red">Zee</span> Hub
+          <h1 className="text-white font-bold text-base tracking-tight">
+            See<span className="text-seezee-red">Zee</span>
           </h1>
         </button>
 
         {/* Navigation */}
-        <nav className="flex gap-2 ml-6">
+        <nav className="flex gap-1 ml-3">
           <button
             onClick={() => router.push('/dashboard')}
             className={`
-              px-4 py-2 rounded-lg font-medium transition-all duration-300
+              px-2 py-1 rounded-md text-xs font-medium transition-all duration-300
               ${pathname === '/dashboard' 
                 ? 'bg-seezee-red text-white shadow-glow-sm' 
                 : 'text-white/60 hover:text-white hover:bg-white/5'}
@@ -62,7 +62,7 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
           <button
             onClick={() => router.push('/library')}
             className={`
-              px-4 py-2 rounded-lg font-medium transition-all duration-300
+              px-2 py-1 rounded-md text-xs font-medium transition-all duration-300
               ${pathname === '/library' 
                 ? 'bg-seezee-red text-white shadow-glow-sm' 
                 : 'text-white/60 hover:text-white hover:bg-white/5'}
@@ -74,23 +74,23 @@ export default function TopBar({ onOpenSettings }: TopBarProps) {
       </div>
 
       {/* Status indicators */}
-      <div className="relative flex items-center gap-5 animate-fade-zoom-in stagger-2">
+      <div className="relative flex items-center gap-2 animate-fade-zoom-in stagger-2">
         {/* Connection Status */}
         <button
           onClick={() => router.push('/settings')}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+          className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 transition-all"
         >
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-seezee-red animate-pulse' : 'bg-white/30'}`} />
-          <span className="text-white/70 text-sm">
-            {isConnected ? 'Connected' : 'Not Connected'}
+          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-seezee-red animate-pulse' : 'bg-white/30'}`} />
+          <span className="text-white/70 text-xs">
+            {isConnected ? 'On' : 'Off'}
           </span>
         </button>
 
         {/* Time */}
-        <span className="text-white/70 font-mono text-lg">{time}</span>
+        <span className="text-white/70 font-mono text-xs">{time}</span>
 
         {/* Logo / PFP */}
-        <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 bg-white/5 shadow-glow-sm">
+        <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-white/5 shadow-glow-sm">
           <img
             src="/seezee-logo.png"
             alt="SeeZee Logo"

@@ -1,20 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
+import { useTheme } from "@/lib/themeContext"
 
 export default function ReactiveBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
-  const particlesRef = useRef<Array<{
-    x: number
-    y: number
-    vx: number
-    vy: number
-    size: number
-    color: string
-    targetX: number
-    targetY: number
-  }>>([])
+  const mouseRef = useRef({ x: 0, y: 0, active: false })
+  const { currentRgb, accentRgb } = useTheme()
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -31,101 +23,88 @@ export default function ReactiveBackground() {
     resize()
     window.addEventListener("resize", resize)
 
-    // Initialize particles
-    const colors = ["#1f232b", "#2a2f38", "#353c48"]
-    const particleCount = 22
+    const hexRadius = 34
+    const hexHeight = Math.sqrt(3) * hexRadius
+    const hexWidth = hexRadius * 2
+    const horizSpacing = hexRadius * 1.5
+    const vertSpacing = hexHeight
 
-    if (particlesRef.current.length === 0) {
-      for (let i = 0; i < particleCount; i++) {
-        particlesRef.current.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: (Math.random() - 0.5) * 0.3,
-          size: Math.random() * 1.5 + 0.5,
-          color: colors[Math.floor(Math.random() * colors.length)],
-          targetX: Math.random() * canvas.width,
-          targetY: Math.random() * canvas.height,
-        })
+    const drawHex = (cx: number, cy: number) => {
+      ctx.beginPath()
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i
+        const x = cx + hexRadius * Math.cos(angle)
+        const y = cy + hexRadius * Math.sin(angle)
+        if (i === 0) {
+          ctx.moveTo(x, y)
+        } else {
+          ctx.lineTo(x, y)
+        }
       }
+      ctx.closePath()
     }
 
-    // Animation loop
     let animationId: number
     const animate = () => {
-      ctx.fillStyle = "rgba(10, 10, 10, 0.12)"
+      ctx.fillStyle = "rgba(8, 10, 14, 0.85)"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
+      const time = performance.now() * 0.0003
+      const pulse = (Math.sin(time) + 1) / 2
+      const lightX = mouseRef.current.active ? mouseRef.current.x : canvas.width * 0.55
+      const lightY = mouseRef.current.active ? mouseRef.current.y : canvas.height * 0.45
+      const maxDist = Math.min(canvas.width, canvas.height) * 0.6
 
-      particlesRef.current.forEach((particle, i) => {
-        // Calculate distance to mouse
-        const dx = mousePos.x - particle.x
-        const dy = mousePos.y - particle.y
-        const distance = Math.sqrt(dx * dx + dy * dy)
-        const maxDistance = 200
+      // Get theme colors
+      const primaryR = currentRgb.r
+      const primaryG = currentRgb.g
+      const primaryB = currentRgb.b
+      const accentR = accentRgb.r
+      const accentG = accentRgb.g
+      const accentB = accentRgb.b
 
-        // React to mouse
-        if (distance < maxDistance) {
-          const force = (maxDistance - distance) / maxDistance
-          particle.vx += (dx / distance) * force * 0.05
-          particle.vy += (dy / distance) * force * 0.05
-        }
+      for (let x = -hexWidth; x < canvas.width + hexWidth; x += horizSpacing) {
+        const colIndex = Math.round(x / horizSpacing)
+        for (let y = -hexHeight; y < canvas.height + hexHeight; y += vertSpacing) {
+          const cy = y + (colIndex % 2 === 0 ? 0 : vertSpacing / 2)
+          const cx = x
+          const dist = Math.hypot(cx - lightX, cy - lightY)
+          const light = Math.max(0, 1 - dist / maxDist)
+          const baseAlpha = 0.04 + pulse * 0.01
+          const glowAlpha = baseAlpha + light * 0.08
 
-        // Gentle drift toward target
-        const targetDx = particle.targetX - particle.x
-        const targetDy = particle.targetY - particle.y
-        particle.vx += targetDx * 0.0002
-        particle.vy += targetDy * 0.0002
+          // Base hexagon with subtle theme color tint
+          ctx.lineWidth = 1
+          ctx.shadowBlur = 6
+          ctx.shadowColor = "rgba(0,0,0,0)"
+          const baseTint = 0.15
+          const baseR = 255 * (1 - baseTint) + primaryR * baseTint
+          const baseG = 255 * (1 - baseTint) + primaryG * baseTint
+          const baseB = 255 * (1 - baseTint) + primaryB * baseTint
+          ctx.strokeStyle = `rgba(${baseR}, ${baseG}, ${baseB}, ${glowAlpha})`
+          drawHex(cx, cy)
+          ctx.stroke()
 
-        // Update position
-        particle.x += particle.vx
-        particle.y += particle.vy
-
-        // Damping
-        particle.vx *= 0.98
-        particle.vy *= 0.98
-
-        // Wrap around screen
-        if (particle.x < 0) particle.x = canvas.width
-        if (particle.x > canvas.width) particle.x = 0
-        if (particle.y < 0) particle.y = canvas.height
-        if (particle.y > canvas.height) particle.y = 0
-
-        // Update target occasionally
-        if (Math.random() < 0.005) {
-          particle.targetX = Math.random() * canvas.width
-          particle.targetY = Math.random() * canvas.height
-        }
-
-        // Draw particle with glow
-        ctx.shadowBlur = 12
-        ctx.shadowColor = particle.color
-        ctx.fillStyle = particle.color
-        ctx.globalAlpha = 0.22
-        ctx.beginPath()
-        ctx.arc(particle.x, particle.y, particle.size * 1.4, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Draw connections to nearby particles
-        particlesRef.current.slice(i + 1).forEach((otherParticle) => {
-          const dx = particle.x - otherParticle.x
-          const dy = particle.y - otherParticle.y
-          const distance = Math.sqrt(dx * dx + dy * dy)
-
-          if (distance < 120) {
-            ctx.globalAlpha = (120 - distance) / 120 * 0.03
-            ctx.strokeStyle = particle.color
-            ctx.lineWidth = 0.6
-            ctx.shadowBlur = 8
-            ctx.beginPath()
-            ctx.moveTo(particle.x, particle.y)
-            ctx.lineTo(otherParticle.x, otherParticle.y)
+          // Glow effect with primary theme color
+          if (light > 0.25) {
+            ctx.lineWidth = 1.5
+            ctx.shadowBlur = 12
+            ctx.shadowColor = `rgba(${primaryR}, ${primaryG}, ${primaryB}, 0.3)`
+            ctx.strokeStyle = `rgba(${primaryR}, ${primaryG}, ${primaryB}, ${(light - 0.25) * 0.15})`
+            drawHex(cx, cy)
             ctx.stroke()
           }
-        })
-      })
 
-      ctx.shadowBlur = 0
-      ctx.globalAlpha = 1
+          // Accent color for brightest areas
+          if (light > 0.6) {
+            ctx.lineWidth = 2
+            ctx.shadowBlur = 16
+            ctx.shadowColor = `rgba(${accentR}, ${accentG}, ${accentB}, 0.4)`
+            ctx.strokeStyle = `rgba(${accentR}, ${accentG}, ${accentB}, ${(light - 0.6) * 0.2})`
+            drawHex(cx, cy)
+            ctx.stroke()
+          }
+        }
+      }
 
       animationId = requestAnimationFrame(animate)
     }
@@ -136,16 +115,16 @@ export default function ReactiveBackground() {
       window.removeEventListener("resize", resize)
       cancelAnimationFrame(animationId)
     }
-  }, [mousePos])
+  }, [currentRgb, accentRgb])
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY })
+    mouseRef.current = { x: e.clientX, y: e.clientY, active: true }
   }
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none opacity-15"
+      className="fixed inset-0 pointer-events-none opacity-20"
       onMouseMove={handleMouseMove}
       style={{ zIndex: 0 }}
     />

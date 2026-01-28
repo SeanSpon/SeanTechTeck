@@ -157,7 +157,6 @@ export default function SystemMonitor() {
 
           {devices.length === 0 && !isLoading && (
             <div className="glass rounded-2xl p-12 text-center">
-              <div className="text-6xl mb-4">📊</div>
               <h3 className="text-white text-xl font-bold mb-2">No Devices Configured</h3>
               <p className="text-white/50 mb-6">
                 Install and run the SeeZee Agent on your PCs to monitor system stats

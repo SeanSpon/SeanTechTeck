@@ -8,64 +8,94 @@
       "type": "games",
       "scanDepth": 2,
       "enabled": true
+    },
+    {
+      "id": "be7e8766-efbc-45bd-82fa-cc5e6b4bb538",
+      "label": "Epic Games ",
+      "path": "C:\\Program Files (x86)\\Epic Games",
+      "type": "games",
+      "scanDepth": 2,
+      "enabled": true
     }
   ],
   "steamLibraries": [],
-  "manualApps": [
-    {
-      "id": "app_chrome",
-      "title": "Google Chrome",
-      "category": "quick",
-      "icon": "🌐",
-      "launchType": "url",
-      "launchValue": "https://www.google.com",
-      "enabled": true
+  "theme": {
+    "name": "Chill Blue",
+    "rgb": {
+      "r": 30,
+      "g": 144,
+      "b": 255
     },
-    {
-      "id": "app_vscode",
-      "title": "VS Code",
-      "category": "tools",
-      "icon": "💻",
-      "launchType": "cmd",
-      "launchValue": "code",
-      "enabled": true
-    }
-  ],
-  "manualUrls": [
-    {
-      "id": "url_roblox",
-      "title": "Roblox",
-      "category": "quick",
-      "icon": "🎮",
-      "url": "https://www.roblox.com/home",
-      "enabled": true
+    "brightness": 80,
+    "sync": {
+      "signalrgb": true,
+      "govee": true,
+      "lan": true
     },
-    {
-      "id": "url_youtube",
-      "title": "YouTube",
-      "category": "web",
-      "icon": "📺",
-      "url": "https://www.youtube.com",
-      "enabled": true
-    }
-  ],
-  "devices": [
-    {
-      "id": "device_main_pc",
-      "name": "Main PC",
-      "type": "pc",
-      "ip": "10.34.43.145",
-      "port": 7777,
-      "enabled": true,
-      "monitorStats": true
-    }
-  ],
+    "lastUpdated": "2026-01-28T14:36:31.901243"
+  },
   "govee": {
-    "enabled": false,
-    "devices": []
+    "enabled": true,
+    "apiKey": "cc2c3eb5-2688-42e1-88aa-f8c40fb67b06",
+    "devices": [
+      {
+        "device": "12:83:A4:C1:38:22:AE:EA",
+        "model": "H6182",
+        "name": "TV backlights",
+        "enabled": true
+      },
+      {
+        "device": "AA:CF:64:C5:3A:ED:A6:B8",
+        "model": "H6052",
+        "name": "Bed lamp",
+        "enabled": true
+      },
+      {
+        "device": "11:B5:CA:D4:53:1A:C2:0F",
+        "model": "H6052",
+        "name": "Desk lamp",
+        "enabled": true
+      },
+      {
+        "device": "BE:C1:A4:C1:38:DF:CF:BD",
+        "model": "H6182",
+        "name": "Behind monitors",
+        "enabled": true
+      },
+      {
+        "device": "EC:FD:D7:39:32:35:35:3C",
+        "model": "H6076",
+        "name": "Tower",
+        "enabled": true
+      },
+      {
+        "device": "93:11:8C:BB:B8:8C:38:FC",
+        "model": "H6052",
+        "name": "Bed Lamp 2",
+        "enabled": true
+      },
+      {
+        "device": "DC:BB:D0:C9:07:10:BB:C5",
+        "model": "H619E",
+        "name": "Ceiling",
+        "enabled": true
+      }
+    ]
   },
   "signalrgb": {
     "enabled": false,
-    "pcEndpoint": "http://10.34.43.145:8888"
-  }
+    "execPath": "C:\\Program Files\\SignalRGB\\SignalRgb.exe",
+    "profiles": {
+      "Gaming Red": "SeeZee-Red",
+      "Chill Blue": "SeeZee-Chill",
+      "Movie Purple": "SeeZee-Movie"
+    }
+  },
+  "lan_lights": {
+    "enabled": false,
+    "devices": []
+  },
+  "manualApps": [],
+  "manualUrls": [],
+  "devices": []
 }

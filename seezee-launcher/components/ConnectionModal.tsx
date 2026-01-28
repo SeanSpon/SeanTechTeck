@@ -173,7 +173,7 @@ export default function ConnectionModal({ isOpen, onClose }: ConnectionModalProp
         {/* Help text */}
         <div className="mt-6 p-4 bg-seezee-blue/10 border border-seezee-blue/30 rounded-lg">
           <p className="text-white/60 text-sm">
-            💡 <strong className="text-white/80">Need help?</strong> Run the SeeZee PC Server on your gaming PC, then enter its IP address above.
+              <strong className="text-white/80">Need help?</strong> Run the SeeZee PC Server on your gaming PC, then enter its IP address above.
           </p>
         </div>
       </div>

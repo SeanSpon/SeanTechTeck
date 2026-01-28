@@ -6,6 +6,7 @@ import subprocess
 import hashlib
 import uuid
 import re
+import time
 from datetime import datetime
 
 try:
@@ -31,6 +32,15 @@ DEFAULT_CONFIG = {
 
 # In-memory config (loaded from file)
 config = {}
+
+# Lighting state cache (prevents API spam)
+lighting_state_cache = {
+    'last_theme': None,
+    'last_rgb': None,  # Global RGB for theme tracking
+    'device_rgb': {},  # Per-device RGB cache: {device_mac: (r,g,b)}
+    'last_govee_call': 0,  # timestamp
+    'govee_rate_limit': 1.0  # min seconds between calls
+}
 
 def load_config():
     """Load configuration from JSON file"""
@@ -242,6 +252,229 @@ def scan_folder_for_games(folder_config):
     return games
 
 # ============================================================
+# RGB LIGHTING CONTROL
+# ============================================================
+
+def set_govee_color(device, r, g, b, brightness=None):
+    """Control Govee device via cloud API with rate limiting
+    
+    Best practice: Send brightness first, then color for reliable results
+    """
+    govee_config = config.get('govee', {})
+    
+    if not govee_config.get('enabled'):
+        return {'success': False, 'error': 'Govee not enabled'}
+    
+    api_key = govee_config.get('apiKey', '')
+    if not api_key:
+        return {'success': False, 'error': 'Govee API key not configured'}
+    
+    device_mac = device.get('device')
+    device_model = device.get('model')
+    device_name = device.get('name', 'Unknown')
+    
+    # Rate limiting check (global - 1 second between any Govee call)
+    now = time.time()
+    time_since_last = now - lighting_state_cache['last_govee_call']
+    if time_since_last < lighting_state_cache['govee_rate_limit']:
+        print(f"⚠️  Govee rate limit: skipping {device_name} (last call {time_since_last:.1f}s ago)")
+        return {'success': False, 'error': 'Rate limited', 'cached': True, 'device': device_name}
+    
+    # Per-device RGB cache check (only skip if THIS device already has this color)
+    current_rgb = (r, g, b)
+    device_cache = lighting_state_cache.get('device_rgb', {})
+    if device_cache.get(device_mac) == current_rgb:
+        print(f"✓ Govee: {device_name} already at RGB{current_rgb}, skipping")
+        return {'success': True, 'cached': True, 'device': device_name}
+    
+    try:
+        import requests
+        
+        headers = {
+            'Govee-API-Key': api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        # STEP 1: Set brightness (if provided)
+        if brightness is not None:
+            brightness_data = {
+                'device': device_mac,
+                'model': device_model,
+                'cmd': {
+                    'name': 'brightness',
+                    'value': int(brightness)
+                }
+            }
+            
+            brightness_response = requests.put(
+                'https://developer-api.govee.com/v1/devices/control',
+                headers=headers,
+                json=brightness_data,
+                timeout=5
+            )
+            
+            if brightness_response.status_code != 200:
+                error_detail = parse_govee_error(brightness_response)
+                print(f"✗ Govee brightness failed for {device_name}: {error_detail}")
+                return {'success': False, 'error': error_detail, 'device': device_name}
+            
+            # Small delay between commands
+            time.sleep(0.3)
+        
+        # STEP 2: Set color
+        color_data = {
+            'device': device_mac,
+            'model': device_model,
+            'cmd': {
+                'name': 'color',
+                'value': {'r': int(r), 'g': int(g), 'b': int(b)}
+            }
+        }
+        
+        color_response = requests.put(
+            'https://developer-api.govee.com/v1/devices/control',
+            headers=headers,
+            json=color_data,
+            timeout=5
+        )
+        
+        # Update global rate limit timestamp
+        lighting_state_cache['last_govee_call'] = time.time()
+        
+        if color_response.status_code == 200:
+            # Update per-device cache on success
+            if 'device_rgb' not in lighting_state_cache:
+                lighting_state_cache['device_rgb'] = {}
+            lighting_state_cache['device_rgb'][device_mac] = current_rgb
+            lighting_state_cache['last_rgb'] = current_rgb  # Also update global
+            
+            brightness_str = f" @ {brightness}%" if brightness else ""
+            print(f"✓ Govee: Set {device_name} to RGB({r},{g},{b}){brightness_str}")
+            return {'success': True, 'device': device_name}
+        else:
+            error_detail = parse_govee_error(color_response)
+            print(f"✗ Govee color failed for {device_name}: {error_detail}")
+            return {'success': False, 'error': error_detail, 'device': device_name}
+            
+    except ImportError:
+        return {'success': False, 'error': 'requests library not installed'}
+    except requests.exceptions.Timeout:
+        return {'success': False, 'error': 'Request timeout - device offline?', 'device': device_name}
+    except requests.exceptions.ConnectionError:
+        return {'success': False, 'error': 'Connection failed - check internet', 'device': device_name}
+    except Exception as e:
+        print(f"✗ Govee error for {device_name}: {e}")
+        return {'success': False, 'error': str(e), 'device': device_name}
+
+def parse_govee_error(response):
+    """Parse Govee API error responses into actionable messages"""
+    status = response.status_code
+    
+    # Common Govee API error codes
+    error_messages = {
+        400: 'Bad request - check device MAC and model',
+        401: 'Invalid API key',
+        404: 'Device not found - wrong MAC or model',
+        429: 'Rate limit exceeded - too many requests',
+        500: 'Govee server error',
+        503: 'Govee service unavailable'
+    }
+    
+    if status in error_messages:
+        return f"{error_messages[status]} ({status})"
+    
+    # Try to parse JSON error
+    try:
+        error_data = response.json()
+        if 'message' in error_data:
+            return f"{error_data['message']} ({status})"
+    except:
+        pass
+    
+    return f"API error {status}: {response.text[:100]}"
+
+def set_signalrgb_profile(theme_name):
+    """Switch SignalRGB profile based on theme"""
+    signalrgb_config = config.get('signalrgb', {})
+    
+    if not signalrgb_config.get('enabled'):
+        return {'success': False, 'error': 'SignalRGB not enabled'}
+    
+    exec_path = signalrgb_config.get('execPath', '')
+    if not os.path.exists(exec_path):
+        return {'success': False, 'error': 'SignalRGB executable not found'}
+    
+    profiles = signalrgb_config.get('profiles', {})
+    profile_name = profiles.get(theme_name)
+    
+    if not profile_name:
+        print(f"⚠️  No SignalRGB profile mapped for theme: {theme_name}")
+        return {'success': False, 'error': f'No profile for theme {theme_name}'}
+    
+    try:
+        # Launch SignalRGB with profile switch
+        subprocess.Popen(
+            [exec_path, '--profile', profile_name],
+            shell=False,
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP if WINDOWS else 0,
+            start_new_session=not WINDOWS
+        )
+        print(f"✓ SignalRGB: Switched to profile '{profile_name}'")
+        return {'success': True, 'profile': profile_name}
+    except Exception as e:
+        print(f"✗ SignalRGB error: {e}")
+        return {'success': False, 'error': str(e)}
+
+def apply_theme(theme_name=None):
+    """Apply theme to all enabled lighting systems"""
+    theme = config.get('theme', {})
+    
+    if theme_name:
+        # If theme name provided, look it up or update current theme name
+        theme['name'] = theme_name
+    
+    rgb = theme.get('rgb', {})
+    r, g, b = rgb.get('r', 255), rgb.get('g', 255), rgb.get('b', 255)
+    brightness = theme.get('brightness', 80)
+    sync_config = theme.get('sync', {})
+    
+    results = {
+        'theme': theme['name'],
+        'rgb': rgb,
+        'signalrgb': None,
+        'govee': None,
+        'lan': None
+    }
+    
+    # 1. SignalRGB (PC hardware)
+    if sync_config.get('signalrgb'):
+        results['signalrgb'] = set_signalrgb_profile(theme['name'])
+    
+    # 2. Govee (cloud API) - with delay between devices
+    if sync_config.get('govee'):
+        govee_devices = config.get('govee', {}).get('devices', [])
+        govee_results = []
+        for i, device in enumerate(govee_devices):
+            if device.get('enabled', True):
+                # Add delay between API calls (1.2s per device)
+                if i > 0:
+                    time.sleep(1.2)
+                result = set_govee_color(device, r, g, b, brightness)
+                govee_results.append({'device': device.get('name'), 'result': result})
+        results['govee'] = govee_results
+    
+    # 3. LAN lights (future: HTTP/UDP control)
+    if sync_config.get('lan'):
+        results['lan'] = {'success': False, 'error': 'LAN control not yet implemented'}
+    
+    # Update last applied timestamp
+    theme['lastUpdated'] = datetime.now().isoformat()
+    lighting_state_cache['last_theme'] = theme['name']
+    save_config()
+    
+    return results
+
+# ============================================================
 # API ENDPOINTS
 # ============================================================
 
@@ -339,11 +572,21 @@ def get_games():
             games = scan_folder_for_games(folder)
             all_games.extend(games)
     
-    print(f"\n✓ Total items found: {len(all_games)}\n")
+    # 3. Deduplicate by game ID (fixes duplicate library paths)
+    seen_ids = set()
+    unique_games = []
+    for game in all_games:
+        game_id = game.get('id')
+        if game_id not in seen_ids:
+            seen_ids.add(game_id)
+            unique_games.append(game)
+    
+    print(f"\n✓ Total items found: {len(all_games)} ({len(all_games) - len(unique_games)} duplicates removed)")
+    print(f"✓ Unique games: {len(unique_games)}\n")
     
     return jsonify({
-        'games': all_games, 
-        'count': len(all_games),
+        'games': unique_games, 
+        'count': len(unique_games),
         'steamLibraries': steam_libraries,
         'customFolders': len(folders)
     })
@@ -479,7 +722,36 @@ def get_config():
         'manualApps': config.get('manualApps', []),
         'manualUrls': config.get('manualUrls', []),
         'devices': config.get('devices', []),
+        'govee': config.get('govee', {}),
+        'signalrgb': config.get('signalrgb', {}),
+        'theme': config.get('theme', {}),
         'platform': 'windows' if WINDOWS else 'linux'
+    })
+
+@app.route('/api/config', methods=['POST'])
+def update_config():
+    """Update configuration (for Govee/SignalRGB settings)"""
+    data = request.json
+    
+    # Update Govee config
+    if 'govee' in data:
+        if 'govee' not in config:
+            config['govee'] = {}
+        config['govee'].update(data['govee'])
+    
+    # Update SignalRGB config
+    if 'signalrgb' in data:
+        if 'signalrgb' not in config:
+            config['signalrgb'] = {}
+        config['signalrgb'].update(data['signalrgb'])
+    
+    # Save to file
+    save_config()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Configuration updated',
+        'config': config
     })
 
 @app.route('/api/quick-access', methods=['GET'])
@@ -668,6 +940,182 @@ def get_devices():
         device_stats.append(device_info)
     
     return jsonify({'devices': device_stats})
+
+@app.route('/api/theme/current', methods=['GET'])
+def get_current_theme():
+    """Get current theme state"""
+    theme = config.get('theme', {})
+    return jsonify({
+        'theme': theme,
+        'cache': {
+            'last_theme': lighting_state_cache['last_theme'],
+            'last_rgb': lighting_state_cache['last_rgb']
+        }
+    })
+
+@app.route('/api/theme/set', methods=['POST'])
+def set_theme():
+    """Apply a theme to all lighting systems"""
+    data = request.json
+    theme_name = data.get('name')
+    rgb = data.get('rgb')  # {r, g, b}
+    brightness = data.get('brightness')
+    
+    if not theme_name and not rgb:
+        return jsonify({'error': 'Theme name or RGB values required'}), 400
+    
+    # Update config
+    if 'theme' not in config:
+        config['theme'] = {}
+    
+    if theme_name:
+        config['theme']['name'] = theme_name
+    
+    if rgb:
+        config['theme']['rgb'] = rgb
+    
+    if brightness is not None:
+        config['theme']['brightness'] = brightness
+    
+    # Apply to all systems
+    try:
+        results = apply_theme(theme_name)
+        return jsonify({
+            'success': True,
+            'message': f"Applied theme: {config['theme']['name']}",
+            'results': results
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/lighting/devices', methods=['GET'])
+def get_lighting_devices():
+    """Get all configured lighting devices"""
+    return jsonify({
+        'govee': {
+            'enabled': config.get('govee', {}).get('enabled', False),
+            'devices': config.get('govee', {}).get('devices', [])
+        },
+        'signalrgb': {
+            'enabled': config.get('signalrgb', {}).get('enabled', False),
+            'profiles': config.get('signalrgb', {}).get('profiles', {})
+        },
+        'lan': {
+            'enabled': config.get('lan_lights', {}).get('enabled', False),
+            'devices': config.get('lan_lights', {}).get('devices', [])
+        }
+    })
+
+@app.route('/api/lighting/sync', methods=['POST'])
+def sync_lighting():
+    """Force sync current theme to all devices (bypass cache)"""
+    # Clear cache to force update
+    lighting_state_cache['last_rgb'] = None
+    lighting_state_cache['last_theme'] = None
+    
+    try:
+        results = apply_theme()
+        return jsonify({
+            'success': True,
+            'message': 'Forced lighting sync',
+            'results': results
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/lighting/govee/devices', methods=['GET'])
+def discover_govee_devices():
+    """Query Govee API for actual devices on account (VERIFICATION)"""
+    govee_config = config.get('govee', {})
+    
+    if not govee_config.get('enabled'):
+        return jsonify({'error': 'Govee not enabled in config'}), 400
+    
+    api_key = govee_config.get('apiKey', '')
+    if not api_key:
+        return jsonify({'error': 'Govee API key not configured'}), 400
+    
+    try:
+        import requests
+        
+        headers = {
+            'Govee-API-Key': api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(
+            'https://developer-api.govee.com/v1/devices',
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Compare with config
+            config_devices = govee_config.get('devices', [])
+            config_macs = {d.get('device') for d in config_devices}
+            api_devices = data.get('data', {}).get('devices', [])
+            api_macs = {d.get('device') for d in api_devices}
+            
+            return jsonify({
+                'success': True,
+                'api_response': data,
+                'configured_devices': len(config_devices),
+                'api_devices': len(api_devices),
+                'matches': len(config_macs & api_macs),
+                'missing_in_config': list(api_macs - config_macs),
+                'invalid_in_config': list(config_macs - api_macs)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'status': response.status_code,
+                'error': response.text,
+                'message': 'Govee API returned error'
+            }), response.status_code
+            
+    except ImportError:
+        return jsonify({'error': 'requests library not installed'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/lighting/govee/state', methods=['GET'])
+def get_govee_device_state():
+    """Query current state of a Govee device"""
+    device_mac = request.args.get('device')
+    model = request.args.get('model')
+    
+    if not device_mac or not model:
+        return jsonify({'error': 'device and model parameters required'}), 400
+    
+    govee_config = config.get('govee', {})
+    api_key = govee_config.get('apiKey', '')
+    
+    if not api_key:
+        return jsonify({'error': 'Govee API key not configured'}), 400
+    
+    try:
+        import requests
+        
+        headers = {
+            'Govee-API-Key': api_key,
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.get(
+            f'https://developer-api.govee.com/v1/devices/state',
+            headers=headers,
+            params={'device': device_mac, 'model': model},
+            timeout=5
+        )
+        
+        return jsonify({
+            'status': response.status_code,
+            'response': response.json() if response.status_code == 200 else response.text
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ============================================================
 # STARTUP

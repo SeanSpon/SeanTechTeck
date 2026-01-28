@@ -30,12 +30,12 @@ export default function GameTile({ game, onPlay, index = 0 }: GameTileProps) {
   return (
     <button
       className={`
-        relative w-full aspect-[2/3] rounded-2xl overflow-hidden
+        relative w-full aspect-[2/3] rounded-lg overflow-hidden
         transition-all duration-300 ease-out
-        focus:outline-none focus-visible:ring-4 focus-visible:ring-seezee-red focus-visible:ring-offset-2 focus-visible:ring-offset-transparent
+        focus:outline-none focus-visible:ring-2 focus-visible:ring-seezee-red focus-visible:ring-offset-1 focus-visible:ring-offset-transparent
         animate-fade-zoom-in stagger-${Math.min(index + 1, 8)}
         ${isActive ? "scale-105 z-10" : "scale-100"}
-        min-h-[240px]
+        min-h-[160px]
       `}
       style={{ 
         background: hasImage ? '#1a1a1a' : game.cover,

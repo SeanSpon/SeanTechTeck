@@ -15,6 +15,13 @@ export default function Library() {
   const [isLoading, setIsLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'steam' | 'local' | 'tool'>('all')
   const [viewMode, setViewMode] = useState<'grid' | 'categories'>('categories')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'none'>('none')
+  const [visibleSources, setVisibleSources] = useState({
+    steam: true,
+    local: true,
+    tool: true
+  })
   
   const { 
     pcIpAddress, 
@@ -76,18 +83,51 @@ export default function Library() {
   }
 
   // Filter games
+  let processedGames = games
+
+  // Apply source visibility filter
+  processedGames = processedGames.filter(g => {
+    if (g.source === 'steam') return visibleSources.steam
+    if (g.source === 'local') return visibleSources.local
+    if (g.source === 'tool') return visibleSources.tool
+    return true
+  })
+
+  // Apply search filter
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase()
+    processedGames = processedGames.filter(g => 
+      g.name.toLowerCase().includes(query)
+    )
+  }
+
+  // Apply sorting
+  if (sortOrder !== 'none') {
+    processedGames = [...processedGames].sort((a, b) => {
+      const comparison = a.name.localeCompare(b.name)
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+  }
+
   const filteredGames = filter === 'all' 
-    ? games 
-    : games.filter(g => g.source === filter)
+    ? processedGames 
+    : processedGames.filter(g => g.source === filter)
 
   const steamCount = games.filter((g) => g.source === "steam").length
   const localCount = games.filter((g) => g.source === "local").length
   const toolCount = games.filter((g) => g.source === "tool").length
 
-  // Group games by source for category view
-  const steamGames = games.filter(g => g.source === 'steam')
-  const localGames = games.filter(g => g.source === 'local')
-  const toolGames = games.filter(g => g.source === 'tool')
+  // Group games by source for category view (with filters applied)
+  const steamGames = processedGames.filter(g => g.source === 'steam')
+  const localGames = processedGames.filter(g => g.source === 'local')
+  const toolGames = processedGames.filter(g => g.source === 'tool')
+
+  const toggleSource = (source: 'steam' | 'local' | 'tool') => {
+    setVisibleSources(prev => ({
+      ...prev,
+      [source]: !prev[source]
+    }))
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col bg-seezee-dark relative overflow-hidden">
@@ -96,28 +136,28 @@ export default function Library() {
       <TopBar />
 
       {/* Scrollable Content Area */}
-      <main className="relative flex-1 overflow-y-auto overflow-x-hidden touch-scroll z-10">
+      <main className="relative flex-1 overflow-y-auto overflow-x-hidden touch-scroll z-10" style={{ WebkitOverflowScrolling: 'touch' }}>
         {/* Header Section (Fixed at top) */}
-        <div className="flex-shrink-0 px-6 py-4 sticky top-0 bg-seezee-dark/95 backdrop-blur-md border-b border-white/5 z-20">
+        <div className="flex-shrink-0 px-3 py-2 sticky top-0 bg-seezee-dark/95 backdrop-blur-md border-b border-white/5 z-20 pointer-events-auto">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-seezee-red hover:text-seezee-red-bright transition-colors mb-2 text-sm font-medium"
+            className="text-seezee-red hover:text-seezee-red-bright transition-colors mb-1 text-xs font-medium"
           >
             ← Back
           </button>
           
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <h2 className="text-white/90 text-3xl font-bold">Library</h2>
-              <p className="text-white/50 text-sm">
-                {viewMode === 'categories' ? games.length : filteredGames.length} items
+              <h2 className="text-white/90 text-xl font-bold">Library</h2>
+              <p className="text-white/50 text-xs">
+                {viewMode === 'categories' ? processedGames.length : filteredGames.length} items
               </p>
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-2 items-center">
               {/* Category/Grid Toggle */}
-              <div className="flex gap-2 glass px-2 py-1 rounded-lg">
+              <div className="flex gap-1 glass px-1 py-0.5 rounded-md">
                 <button
                   onClick={() => setViewMode('categories')}
                   className={`
@@ -144,7 +184,7 @@ export default function Library() {
 
               {/* Filter Tabs (only show in grid mode) */}
               {viewMode === 'grid' && (
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   {[
                     { key: 'all', label: 'All' },
                     { key: 'steam', label: 'Steam' },
@@ -154,7 +194,7 @@ export default function Library() {
                       key={tab.key}
                       onClick={() => setFilter(tab.key as any)}
                       className={`
-                        px-4 py-2 rounded-lg font-medium transition-all duration-200 text-sm
+                        px-2 py-0.5 rounded-md font-medium transition-all duration-200 text-xs
                         ${filter === tab.key 
                           ? 'bg-seezee-red text-white' 
                           : 'glass text-white/60 hover:text-white'}
@@ -167,23 +207,93 @@ export default function Library() {
               )}
             </div>
           </div>
+
+          {/* Search & Filters Row */}
+          <div className="flex gap-2 items-center pointer-events-auto">
+            {/* Search Bar */}
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search games..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full glass px-3 py-2 rounded-md text-white/90 text-sm placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-seezee-red/50 pointer-events-auto"
+                style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+              />
+            </div>
+
+            {/* Sort Button */}
+            <button
+              onClick={() => {
+                if (sortOrder === 'none') setSortOrder('asc')
+                else if (sortOrder === 'asc') setSortOrder('desc')
+                else setSortOrder('none')
+              }}
+              className="glass px-3 py-2 rounded-md text-white/70 hover:text-white transition-colors text-xs font-medium whitespace-nowrap"
+              title={sortOrder === 'none' ? 'No sorting' : sortOrder === 'asc' ? 'A→Z' : 'Z→A'}
+            >
+              {sortOrder === 'none' && '⇅'}
+              {sortOrder === 'asc' && '↓ A-Z'}
+              {sortOrder === 'desc' && '↑ Z-A'}
+            </button>
+
+            {/* Source Visibility Toggles */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => toggleSource('steam')}
+                className={`
+                  px-2 py-2 rounded-md text-xs font-medium transition-all duration-200
+                  ${visibleSources.steam 
+                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
+                    : 'glass text-white/30 hover:text-white/50'}
+                `}
+                title={visibleSources.steam ? 'Hide Steam games' : 'Show Steam games'}
+              >
+                S
+              </button>
+              <button
+                onClick={() => toggleSource('local')}
+                className={`
+                  px-2 py-2 rounded-md text-xs font-medium transition-all duration-200
+                  ${visibleSources.local 
+                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
+                    : 'glass text-white/30 hover:text-white/50'}
+                `}
+                title={visibleSources.local ? 'Hide local apps' : 'Show local apps'}
+              >
+                L
+              </button>
+              <button
+                onClick={() => toggleSource('tool')}
+                className={`
+                  px-2 py-2 rounded-md text-xs font-medium transition-all duration-200
+                  ${visibleSources.tool 
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                    : 'glass text-white/30 hover:text-white/50'}
+                `}
+                title={visibleSources.tool ? 'Hide tools' : 'Show tools'}
+              >
+                T
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Game Grid - Scrollable */}
-        <div className="px-6 py-6">
+        <div className="px-3 py-3 pointer-events-auto">
           {viewMode === 'categories' ? (
             // Category View - Organized sections
-            <div className="space-y-8">
+            <div className="space-y-4">
               {/* Steam Games Section */}
               {steamGames.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                      <span className="text-xl">🎮</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                      <span className="text-xs font-semibold text-white/90">S</span>
                     </div>
                     <div>
-                      <h3 className="text-white/90 text-xl font-bold">Steam</h3>
-                      <p className="text-white/50 text-xs">{steamGames.length} games</p>
+                      <h3 className="text-white/90 text-sm font-bold">Steam</h3>
+                      <p className="text-white/50 text-xs\">{steamGames.length} games</p>
                     </div>
                   </div>
                   <GameGrid games={steamGames} onPlayGame={handlePlayGame} />
@@ -193,12 +303,12 @@ export default function Library() {
               {/* Local Apps Section */}
               {localGames.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                      <span className="text-xl">💻</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                      <span className="text-xs font-semibold text-white/90">L</span>
                     </div>
                     <div>
-                      <h3 className="text-white/90 text-xl font-bold">Local Apps</h3>
+                      <h3 className="text-white/90 text-sm font-bold">Local Apps</h3>
                       <p className="text-white/50 text-xs">{localGames.length} apps</p>
                     </div>
                   </div>
@@ -209,12 +319,12 @@ export default function Library() {
               {/* Tools Section */}
               {toolGames.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                      <span className="text-xl">🔧</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-md bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                      <span className="text-xs font-semibold text-white/90">T</span>
                     </div>
                     <div>
-                      <h3 className="text-white/90 text-xl font-bold">Tools</h3>
+                      <h3 className="text-white/90 text-sm font-bold">Tools</h3>
                       <p className="text-white/50 text-xs">{toolGames.length} tools</p>
                     </div>
                   </div>
@@ -223,8 +333,20 @@ export default function Library() {
               )}
 
               {/* Empty State */}
-              {games.length === 0 && (
-                <EmptyGameLibrary />
+              {processedGames.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-white/50 text-sm">
+                    {searchQuery ? 'No games match your search' : 'No games found'}
+                  </p>
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="mt-2 text-seezee-red hover:text-seezee-red-bright text-xs"
+                    >
+                      Clear search
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           ) : (
@@ -232,7 +354,19 @@ export default function Library() {
             filteredGames.length > 0 ? (
               <GameGrid games={filteredGames} onPlayGame={handlePlayGame} />
             ) : (
-              <EmptyGameLibrary />
+              <div className="text-center py-12">
+                <p className="text-white/50 text-sm">
+                  {searchQuery ? 'No games match your search' : 'No games found'}
+                </p>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="mt-2 text-seezee-red hover:text-seezee-red-bright text-xs"
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
             )
           )}
         </div>
