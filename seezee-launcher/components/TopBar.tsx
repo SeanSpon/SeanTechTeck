@@ -1,163 +1,94 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
-import { useTheme, themes } from "@/lib/themeContext"
+import { usePathname, useRouter } from "next/navigation"
 import { useConnectionStore } from "@/lib/connectionStore"
+import SeeZeeWordmark from "@/components/SeeZeeWordmark"
 
-interface TopBarProps {
-  onOpenSettings?: () => void
+type NavItem = { href: string; label: string }
+
+const NAV: NavItem[] = [
+	{ href: "/dashboard", label: "Hub" },
+	{ href: "/commancenter", label: "Command" },
+	{ href: "/library", label: "Library" },
+	{ href: "/lighting", label: "Lights" },
+	{ href: "/audio", label: "Audio" },
+	{ href: "/monitor", label: "Monitor" },
+	{ href: "/settings", label: "Settings" },
+]
+
+export default function TopBar() {
+	const router = useRouter()
+	const pathname = usePathname()
+	const { pcIpAddress, pcPort, isConnected } = useConnectionStore()
+
+	return (
+		<header className="relative flex-shrink-0 z-20 bg-seezee-dark/95 backdrop-blur-md border-b border-white/10">
+			<div className="px-6 py-3 max-[1280px]:px-4 max-[1280px]:py-2 flex items-center justify-between gap-4 max-[1280px]:gap-3">
+				<button
+					type="button"
+					onClick={() => router.push("/dashboard")}
+					className="flex items-center gap-3 max-[1280px]:gap-2 rounded-xl px-2 py-1 hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-seezee-red/50"
+					aria-label="Go to Hub"
+				>
+					<SeeZeeWordmark size="sm" />
+				</button>
+
+				<nav className="hidden md:flex items-center gap-2">
+					{NAV.map((item) => {
+						const active = pathname === item.href
+						return (
+							<button
+								key={item.href}
+								type="button"
+								onClick={() => router.push(item.href)}
+								className={
+									"px-3 py-2 max-[1280px]:px-2 max-[1280px]:py-1.5 rounded-lg text-sm max-[1280px]:text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-seezee-red/40 " +
+									(active
+										? "bg-white/10 text-white"
+										: "text-white/60 hover:text-white hover:bg-white/5")
+								}
+							>
+								{item.label}
+							</button>
+						)
+					})}
+				</nav>
+
+				<div className="flex items-center gap-3">
+					<div
+						className={
+							"flex items-center gap-2 px-3 py-1.5 max-[1280px]:px-2 max-[1280px]:py-1 rounded-lg border text-xs " +
+							(isConnected
+								? "bg-seezee-green/10 border-seezee-green/30 text-white/80"
+								: "bg-white/5 border-white/10 text-white/50")
+						}
+						aria-label={
+							isConnected
+								? `Connected to ${pcIpAddress}:${pcPort}`
+								: "Not connected"
+						}
+					>
+						<span
+							className={
+								"w-2 h-2 rounded-full " +
+								(isConnected ? "bg-seezee-red animate-pulse" : "bg-white/30")
+							}
+						/>
+						<span className="font-mono">
+							{isConnected && pcIpAddress ? `${pcIpAddress}:${pcPort}` : "No PC"}
+						</span>
+					</div>
+
+					<button
+						type="button"
+						onClick={() => router.push("/settings")}
+						className="md:hidden px-3 py-2 max-[1280px]:px-2 max-[1280px]:py-1.5 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 transition-colors text-sm"
+					>
+						Settings
+					</button>
+				</div>
+			</div>
+		</header>
+	)
 }
 
-export default function TopBar({ onOpenSettings }: TopBarProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const [time, setTime] = useState<string>("")
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
-  const { theme, setTheme } = useTheme()
-  const { isConnected } = useConnectionStore()
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date()
-      setTime(
-        now.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
-      )
-    }
-    updateTime()
-    const interval = setInterval(updateTime, 1000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <header className="relative flex items-center justify-between px-4 py-2 backdrop-blur-md border-b border-white/5 glass animate-slide-in-up">
-      {/* Logo / Title */}
-      <div className="relative flex items-center gap-3 animate-fade-zoom-in">
-        <button 
-          onClick={() => router.push('/dashboard')}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-        >
-          <h1 className="text-white font-bold text-base tracking-tight">
-            See<span className="text-seezee-red">Zee</span>
-          </h1>
-        </button>
-
-        {/* Navigation */}
-        <nav className="flex gap-1 ml-3">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className={`
-              px-2 py-1 rounded-md text-xs font-medium transition-all duration-300
-              ${pathname === '/dashboard' 
-                ? 'bg-seezee-red text-white shadow-glow-sm' 
-                : 'text-white/60 hover:text-white hover:bg-white/5'}
-            `}
-          >
-            Home
-          </button>
-          <button
-            onClick={() => router.push('/library')}
-            className={`
-              px-2 py-1 rounded-md text-xs font-medium transition-all duration-300
-              ${pathname === '/library' 
-                ? 'bg-seezee-red text-white shadow-glow-sm' 
-                : 'text-white/60 hover:text-white hover:bg-white/5'}
-            `}
-          >
-            Library
-          </button>
-        </nav>
-      </div>
-
-      {/* Status indicators */}
-      <div className="relative flex items-center gap-2 animate-fade-zoom-in stagger-2">
-        {/* Connection Status */}
-        <button
-          onClick={() => router.push('/settings')}
-          className="flex items-center gap-1 px-2 py-1 rounded-md bg-white/5 hover:bg-white/10 transition-all"
-        >
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-seezee-red animate-pulse' : 'bg-white/30'}`} />
-          <span className="text-white/70 text-xs">
-            {isConnected ? 'On' : 'Off'}
-          </span>
-        </button>
-
-        {/* Time */}
-        <span className="text-white/70 font-mono text-xs">{time}</span>
-
-        {/* Logo / PFP */}
-        <div className="w-6 h-6 rounded-full overflow-hidden border border-white/10 bg-white/5 shadow-glow-sm">
-          <img
-            src="/seezee-logo.png"
-            alt="SeeZee Logo"
-            className="w-full h-full object-contain"
-          />
-        </div>
-
-        {/* Theme Selector */}
-        <div className="relative">
-          <button
-            onClick={() => setShowThemeMenu(!showThemeMenu)}
-            className="w-12 h-12 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-seezee-red hover:shadow-glow-sm hover:scale-105"
-            aria-label="Change theme"
-          >
-            <svg
-              className="w-6 h-6 text-white/70 transition-transform duration-300"
-              style={{ transform: showThemeMenu ? "rotate(180deg)" : "rotate(0)" }}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
-              />
-            </svg>
-          </button>
-
-          {/* Theme Menu */}
-          {showThemeMenu && (
-            <div className="absolute right-0 top-14 w-56 p-2 rounded-xl glass border border-white/10 shadow-glow-accent animate-bounce-in z-50">
-              <div className="text-white/50 text-xs uppercase tracking-wide px-3 py-2">Select Theme</div>
-              {Object.entries(themes).map(([key, themeData]) => (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setTheme(key as any)
-                    setShowThemeMenu(false)
-                  }}
-                  className={`
-                    w-full px-3 py-2.5 rounded-lg text-left
-                    transition-all duration-200
-                    flex items-center gap-3
-                    ${theme === key 
-                      ? "bg-white/10 text-white" 
-                      : "text-white/70 hover:bg-white/5 hover:text-white"
-                    }
-                  `}
-                >
-                  <div 
-                    className="w-4 h-4 rounded-full"
-                    style={{ background: themeData.accent }}
-                  />
-                  <span className="font-medium">{themeData.name}</span>
-                  {theme === key && (
-                    <svg className="w-4 h-4 ml-auto text-seezee-red" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
-  )
-}

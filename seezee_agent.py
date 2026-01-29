@@ -136,12 +136,12 @@ if __name__ == '__main__':
     print("=" * 60)
     print(f"\n📊 Hostname: {get_hostname()}")
     print(f"🌐 IP Address: {get_local_ip()}")
-    print(f"🚀 Server starting on: http://0.0.0.0:7777")
+    print(f"🚀 Server starting on: http://0.0.0.0:5050")
     print("\n💡 Add this device to your Pi's seezee_config.json")
     print("⌨️  Press Ctrl+C to stop\n")
     print("=" * 60 + "\n")
     
     try:
-        app.run(host='0.0.0.0', port=7777, debug=False)
+        app.run(host='0.0.0.0', port=5050, debug=False)
     except KeyboardInterrupt:
         print("\n\n👋 Agent stopped. Goodbye!")

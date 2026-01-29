@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import SeeZeeWordmark from "@/components/SeeZeeWordmark"
 
 interface StartupScreenProps {
   onComplete?: () => void
@@ -50,10 +51,10 @@ export default function StartupScreen({
       </div>
 
       {/* Main content container */}
-      <div className="relative z-10 text-center flex flex-col items-center gap-6">
+      <div className="relative z-10 text-center flex flex-col items-center gap-6 max-[1280px]:gap-4">
         {/* Logo with dissolve animation */}
         <div
-          className={`relative w-32 h-32 animate-startup-dissolve ${
+          className={`relative w-32 h-32 max-[1280px]:w-24 max-[1280px]:h-24 animate-startup-dissolve ${
             phase === "fade" ? "opacity-0 transition-opacity duration-800" : ""
           }`}
           style={{
@@ -72,25 +73,21 @@ export default function StartupScreen({
 
         {/* Main title with character dissolve */}
         <div className="relative overflow-hidden">
-          <h1
-            className={`text-6xl font-bold text-white tracking-wider animate-startup-text-dissolve ${
-              phase === "fade"
-                ? "opacity-0 transition-opacity duration-800"
-                : ""
+          <div
+            className={`animate-startup-text-dissolve ${
+              phase === "fade" ? "opacity-0 transition-opacity duration-800" : ""
             }`}
             style={{
-              textShadow:
-                "0 0 20px rgba(230, 57, 70, 0.4)",
-              letterSpacing: "0.05em",
+              filter: "drop-shadow(0 0 20px rgba(230, 57, 70, 0.35))",
             }}
           >
-            SEE <span className="px-3 py-1 bg-seezee-red text-white rounded inline-block mx-2">STUDIO</span> ZEE
-          </h1>
+            <SeeZeeWordmark size="lg" />
+          </div>
         </div>
 
         {/* Loading indicator */}
         <div
-          className={`mt-8 flex gap-2 animate-startup-loading-indicator ${
+          className={`mt-8 max-[1280px]:mt-6 flex gap-2 animate-startup-loading-indicator ${
             phase === "fade"
               ? "opacity-0 transition-opacity duration-800"
               : ""
@@ -118,7 +115,7 @@ export default function StartupScreen({
 
         {/* Tagline */}
         <p
-          className={`mt-6 text-sm text-white/50 font-light animate-startup-tagline ${
+          className={`mt-6 max-[1280px]:mt-4 text-sm max-[1280px]:text-xs text-white/50 font-light animate-startup-tagline ${
             phase === "fade"
               ? "opacity-0 transition-opacity duration-800"
               : ""

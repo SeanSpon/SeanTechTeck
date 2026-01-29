@@ -1,0 +1,85 @@
+🎮 SEEZEE QUICK START - STEP BY STEP
+
+================================================================================
+STEP 1: START EVERYTHING
+================================================================================
+
+Double-click this file in the folder:
+    → START_SEEZEE.bat
+
+This will:
+  ✅ Start the Python server
+  ✅ Start the Next.js hub
+  ✅ Open the hub in your browser at http://localhost:3000
+
+Wait for everything to load (30 seconds).
+
+================================================================================
+STEP 2: CONFIGURE CONNECTION (First Time Only)
+================================================================================
+
+In the hub, you'll see a connection button at the TOP-LEFT.
+
+Click it and set:
+  PC IP:  127.0.0.1
+  Port:   5555
+  
+Click "Connect"
+
+It should say "Connected" ✅
+
+================================================================================
+STEP 3: ADD YOUR GAMES FOLDER
+================================================================================
+
+Click the ⚙️ SETTINGS button (top right)
+
+Go to "Game Libraries"
+
+Click "+ Add Folder"
+
+Select your Steam folder:
+    → C:\Program Files (x86)\Steam\steamapps
+
+Click "Scan"
+
+Wait for it to find your games (this takes a minute...)
+
+================================================================================
+STEP 4: LAUNCH A GAME
+================================================================================
+
+Games appear in the main view.
+
+Click any game tile to launch it.
+
+The game should open on your PC!
+
+================================================================================
+NOTES
+================================================================================
+
+Steam Games:
+  • Automatically launch via Steam protocol
+  • Just click them!
+
+Local Games:
+  • Must be in a configured folder
+  • .exe files are scanned automatically
+
+If games won't launch:
+  1. Check Settings → Game Libraries shows your folder
+  2. Check console in terminal windows for errors
+  3. Make sure folder path is correct
+  4. Try restarting with START_SEEZEE.bat again
+
+================================================================================
+THAT'S IT!
+================================================================================
+
+You now have:
+  ✅ A game launcher hub
+  ✅ Automatic game discovery
+  ✅ One-click game launching
+
+Enjoy! 🎮

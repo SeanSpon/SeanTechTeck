@@ -1,4 +1,4 @@
-export type GameSource = "steam" | "local" | "tool"
+export type GameSource = "steam" | "epic" | "local" | "tool"
 
 export type Game = {
   id: string

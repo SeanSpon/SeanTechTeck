@@ -51,6 +51,26 @@ See [SETUP_GUIDE.md](seezee-launcher/SETUP_GUIDE.md) for complete instructions o
 - Configuring Steam library paths
 - Troubleshooting connection issues
 
+## 🖥️ PC Agent Setup (Auto-Monitoring)
+
+For system monitoring and auto-startup on your gaming PC:
+
+### Quick Start:
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+.\windows\setup-agent-startup.ps1
+```
+
+This sets up:
+- ✅ SeeZee Agent to run on Windows startup
+- ✅ System monitoring on port 5050 (CPU, memory, disk, temps)
+- ✅ Automatic restart if it crashes
+- ✅ Logging to `seezee_agent.log`
+
+Then add your PC's IP to `seezee_config.json` under the `agents` section.
+
+📖 **Full instructions**: [WINDOWS_AGENT_SETUP.md](WINDOWS_AGENT_SETUP.md) or [WINDOWS_AGENT_QUICK_START.md](WINDOWS_AGENT_QUICK_START.md)
+
 ## 🎨 UI Features
 
 - **Reactive Background**: Animated particles that respond to mouse movement

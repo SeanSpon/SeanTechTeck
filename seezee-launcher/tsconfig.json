@@ -30,5 +30,10 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "app/**/page_old*.tsx",
+    "app/**/*old_backup*.tsx",
+    "app/**/*backup*.tsx"
+  ]
 }

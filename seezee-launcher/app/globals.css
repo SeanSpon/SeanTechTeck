@@ -1,452 +1,106 @@
 @import "tailwindcss";
 
-@theme {
-  /* SeeZee Dark Theme - Red & Charcoal */
-  --color-seezee-dark: #0a0a0a;
-  --color-seezee-darker: #000000;
-  --color-seezee-charcoal: #1a1a1a;
-  --color-seezee-charcoal-light: #2a2a2a;
-  --color-seezee-red: #e63946;  /* Primary red accent */
-  --color-seezee-red-dark: #c1121f;
-  --color-seezee-red-bright: #ff4757;
-  --color-seezee-cyan: #00e5ff;   /* Keep for compatibility */
-  --color-seezee-green: #39ff14;  /* Keep for compatibility */
-  --color-seezee-blue: #0066ff;   /* Keep for compatibility */
+:root {
+	/* Accent is updated live by ThemeProvider */
+	--seezee-accent: 230 57 70;
 
-  /* Glow Shadows - Red theme */
-  --shadow-glow: 0 0 20px rgba(230, 57, 70, 0.4), 0 0 40px rgba(230, 57, 70, 0.2);
-  --shadow-glow-sm: 0 0 10px rgba(230, 57, 70, 0.3);
-  --shadow-glow-lg: 0 0 30px rgba(230, 57, 70, 0.5), 0 0 60px rgba(230, 57, 70, 0.3);
-  --shadow-glow-subtle: 0 4px 20px rgba(230, 57, 70, 0.15);
-  --shadow-glow-accent: 0 0 20px rgba(230, 57, 70, 0.4), 0 0 40px rgba(230, 57, 70, 0.2);
-  
-  /* Theme CSS Variables */
-  --theme-primary: #e63946;
-  --theme-secondary: #c1121f;
-  --theme-accent: #ff4757;
-  --theme-background: #0a0a0a;
-  --theme-card: rgba(26, 26, 26, 0.8);
+	/* Base UI colors */
+	--seezee-dark: 8 10 14;
+	--seezee-charcoal: 18 20 26;
+	--seezee-green: 60 220 130;
 }
 
-/* Base styles */
+@theme inline {
+	--color-seezee-red: var(--seezee-accent);
+	--color-seezee-red-bright: 255 85 85;
+	--color-seezee-red-dark: 170 18 34;
+	--color-seezee-dark: var(--seezee-dark);
+	--color-seezee-charcoal: var(--seezee-charcoal);
+	--color-seezee-green: var(--seezee-green);
+}
+
 html,
 body {
-  @apply bg-seezee-dark text-white antialiased;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-  touch-action: pan-y;
+	height: 100%;
 }
 
-/* Main scroll container - single source of scrolling */
-.main-scroll {
-  height: 100%;
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  scrollbar-width: none; /* Firefox */
+body {
+	background: rgb(var(--seezee-dark));
+	color: rgb(255 255 255 / 0.92);
 }
 
-.main-scroll::-webkit-scrollbar {
-  display: none; /* Chrome, Safari */
+@media (max-width: 1280px), (max-height: 720px) {
+	html {
+		font-size: 14px;
+	}
 }
 
-/* Prevent text selection on UI elements but allow on inputs */
-body * {
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+@layer utilities {
+	.glass {
+		@apply bg-white/5 backdrop-blur-md;
+	}
+
+	.shadow-glow {
+		box-shadow: 0 0 24px rgb(var(--seezee-accent) / 0.22);
+	}
+
+	.animation-delay-2000 {
+		animation-delay: 2s;
+	}
+
+	.animation-delay-4000 {
+		animation-delay: 4s;
+	}
 }
 
-/* Allow text selection in inputs */
-input, textarea {
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
-}
-
-/* Hide scrollbar but keep functionality */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* Touch scrolling support (critical for touchscreen) */
-.touch-scroll {
-  -webkit-overflow-scrolling: touch !important;
-  overscroll-behavior: contain !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-}
-
-/* Force touch events to work */
-body, html {
-  touch-action: manipulation;
-}
-
-/* Make all scrollable areas work with touch */
-[style*="overflow-y: auto"], 
-[style*="overflow: auto"] {
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Smooth focus transitions for controller navigation */
-*:focus-visible {
-  @apply outline-none ring-2 ring-seezee-red ring-offset-2 ring-offset-seezee-dark;
-  transition: box-shadow 0.2s ease-out;
-}
-
-/* Button and interactive element base styles */
-button,
-a {
-  @apply transition-all duration-200 ease-out;
-}
-
-/* Selection color */
-::selection {
-  @apply bg-seezee-red/30 text-white;
-}
-
-/* =====================================================
-   STARTUP SCREEN ANIMATIONS
-   ===================================================== */
-
-/* Dissolve effect for logo and text - pixel by pixel fade in */
-@keyframes startup-dissolve {
-  0% {
-    opacity: 0;
-    transform: scale(0.8) rotate(-5deg);
-    filter: blur(10px);
-  }
-  20% {
-    opacity: 0.3;
-  }
-  60% {
-    opacity: 0.8;
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-    filter: blur(0px);
-  }
-}
-
-.animate-startup-dissolve {
-  animation: startup-dissolve 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-
-/* Text dissolve - character by character effect */
-@keyframes startup-text-dissolve {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-    filter: blur(8px);
-  }
-  30% {
-    opacity: 0.2;
-  }
-  70% {
-    opacity: 0.9;
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0px);
-  }
-}
-
-.animate-startup-text-dissolve {
-  animation: startup-text-dissolve 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards 0.3s;
-  animation-fill-mode: both;
-}
-
-/* Subtitle fade in */
-@keyframes startup-subtitle {
-  0% {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-startup-subtitle {
-  animation: startup-subtitle 0.8s ease-out forwards 0.8s;
-  animation-fill-mode: both;
-}
-
-/* Loading indicator animation */
-@keyframes startup-dot {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
-  }
-}
-
-.animate-startup-loading-indicator {
-  animation: fadeIn 0.8s ease-out forwards 1.1s;
-  animation-fill-mode: both;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Tagline animation */
-@keyframes startup-tagline {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-.animate-startup-tagline {
-  animation: startup-tagline 1s ease-out forwards 1.3s;
-  animation-fill-mode: both;
-}
-
-/* Fade out animation for entire startup screen */
-@keyframes startup-fadeout {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.05);
-  }
-}
-
-.animate-startup-fadeout {
-  animation: startup-fadeout 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-/* Pixel dissolve effect during fade out */
-@keyframes startup-pixel-dissolve {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 0.6;
-  }
-}
-
-.animate-startup-pixel-dissolve {
-  animation: startup-pixel-dissolve 0.8s ease-out forwards;
-}
-/* =====================================================
-   PS5-STYLE ANIMATIONS & EFFECTS
-   ===================================================== */
-
-/* Slide in from bottom - for game tiles */
-@keyframes slide-in-up {
-  0% {
-    opacity: 0;
-    transform: translateY(40px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slide-in-up {
-  animation: slide-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Fade zoom in - PS5 style card entrance */
-@keyframes fade-zoom-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-fade-zoom-in {
-  animation: fade-zoom-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Glow pulse - for focused elements */
-@keyframes glow-pulse {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(230, 57, 70, 0.3),
-                0 0 20px rgba(230, 57, 70, 0.2);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(230, 57, 70, 0.5),
-                0 0 40px rgba(230, 57, 70, 0.3);
-  }
-}
-
-.animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
-}
-
-/* Shimmer effect - subtle loading */
-@keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(230, 57, 70, 0.1) 50%,
-    transparent 100%
-  );
-  background-size: 1000px 100%;
-  animation: shimmer 2s infinite;
-}
-
-/* Float effect for hover states */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-8px) scale(1.02);
-  }
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-/* Gradient shift - animated backgrounds */
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-gradient-shift {
-  background-size: 200% 200%;
-  animation: gradient-shift 8s ease infinite;
-}
-
-/* Bounce in - for notifications/popups */
-@keyframes bounce-in {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  70% {
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-bounce-in {
-  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-}
-
-/* Stagger animation helper classes */
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-.stagger-4 { animation-delay: 0.4s; }
-.stagger-5 { animation-delay: 0.5s; }
-.stagger-6 { animation-delay: 0.6s; }
-.stagger-7 { animation-delay: 0.7s; }
-.stagger-8 { animation-delay: 0.8s; }
-
-/* Glass morphism effect - darker */
-.glass {
-  background: rgba(26, 26, 26, 0.6);
-  backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-/* Neon glow text effect */
-.text-neon-glow {
-  text-shadow: 
-    0 0 10px currentColor,
-    0 0 20px currentColor,
-    0 0 40px currentColor;
-}
-/* =====================================================
-   SETTINGS PAGE ANIMATIONS
-   ===================================================== */
-
-/* Animated blob background */
 @keyframes blob {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  33% {
-    transform: translate(30px, -50px) scale(1.1);
-  }
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
-  }
+	0% {
+		transform: translate(0px, 0px) scale(1);
+	}
+	33% {
+		transform: translate(30px, -50px) scale(1.1);
+	}
+	66% {
+		transform: translate(-20px, 20px) scale(0.95);
+	}
+	100% {
+		transform: translate(0px, 0px) scale(1);
+	}
 }
 
 .animate-blob {
-  animation: blob 7s infinite;
+	animation: blob 7s infinite;
 }
 
-.animation-delay-2000 {
-  animation-delay: 2s;
+@keyframes startup-dot {
+	0%,
+	80%,
+	100% {
+		transform: scale(0);
+		opacity: 0.35;
+	}
+	40% {
+		transform: scale(1);
+		opacity: 1;
+	}
 }
 
-.animation-delay-4000 {
-  animation-delay: 4s;
+@keyframes startup-fadeout {
+	to {
+		opacity: 0;
+		transform: scale(1.02);
+	}
+	
 }
 
-/* Fade in animation */
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* Touch-friendly scrolling for kiosk/touch screens */
+.touch-scroll {
+	-webkit-overflow-scrolling: touch;
+	overscroll-behavior: contain;
+	touch-action: pan-y;
 }
 
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
+.animate-startup-fadeout {
+	animation: startup-fadeout 0.8s ease-out forwards;
 }
+

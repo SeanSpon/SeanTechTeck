@@ -17,11 +17,16 @@ export interface FolderConfig {
 export interface GameItem {
   id: string
   title: string
-  source: 'steam' | 'local' | 'tool'
+  source: 'steam' | 'epic' | 'local' | 'tool'
   steamAppId?: string
   execPath?: string
   coverImage?: string
   folderSource?: string
+}
+
+export interface DirectoryEntry {
+  name: string
+  path: string
 }
 
 export interface ConnectionConfig {
@@ -49,6 +54,13 @@ interface ConnectionStore extends ConnectionConfig {
   removeFolder: (id: string) => Promise<boolean>
   fetchGames: () => Promise<GameItem[]>
   launchGame: (game: GameItem) => Promise<boolean>
+  listDrives: () => Promise<string[]>
+  listDirectory: (path: string) => Promise<DirectoryEntry[]>
+  createFolder: (path: string) => Promise<boolean>
+  trackRecentPlay: (gameId: string) => Promise<boolean>
+  getRecentPlays: () => Promise<string[]>
+  getFavorites: () => Promise<string[]>
+  toggleFavorite: (itemId: string) => Promise<boolean>
 }
 
 const defaultConfig: ConnectionConfig = {
@@ -226,10 +238,17 @@ export const useConnectionStore = create<ConnectionStore>()(
       launchGame: async (game) => {
         const { getServerUrl } = get()
         
+        if (!game.steamAppId && !game.execPath) {
+          console.error('Game has neither steamAppId nor execPath:', game)
+          return false
+        }
+        
         try {
           const body = game.steamAppId 
             ? { steamAppId: game.steamAppId }
             : { execPath: game.execPath }
+          
+          console.log('Launching game with:', body)
           
           const response = await fetch(`${getServerUrl()}/api/launch`, {
             method: 'POST',
@@ -237,9 +256,170 @@ export const useConnectionStore = create<ConnectionStore>()(
             body: JSON.stringify(body)
           })
           
-          return response.ok
+          const data = await response.json()
+          
+          if (response.ok && data.success) {
+            console.log('Game launched successfully:', data.message)
+            return true
+          } else {
+            console.error('Server returned error:', data.error || data.message)
+            return false
+          }
         } catch (error) {
           console.error('Failed to launch game:', error)
+          return false
+        }
+      },
+
+      // List available drive roots
+      listDrives: async () => {
+        const { getServerUrl } = get()
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/fs/drives`)
+          if (response.ok) {
+            const data = await response.json()
+            set({ isLoading: false })
+            return data.drives || []
+          }
+
+          set({ isLoading: false, error: 'Failed to list drives' })
+          return []
+        } catch (error) {
+          set({
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'Failed to list drives'
+          })
+          return []
+        }
+      },
+
+      // List directories for a given path
+      listDirectory: async (path) => {
+        const { getServerUrl } = get()
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/fs/list?path=${encodeURIComponent(path)}`)
+          if (response.ok) {
+            const data = await response.json()
+            set({ isLoading: false })
+            return data.directories || []
+          }
+
+          const errorData = await response.json()
+          set({ isLoading: false, error: errorData.error || 'Failed to list directory' })
+          return []
+        } catch (error) {
+          set({
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'Failed to list directory'
+          })
+          return []
+        }
+      },
+
+      // Create a folder at the given path
+      createFolder: async (path) => {
+        const { getServerUrl } = get()
+        set({ isLoading: true, error: null })
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/fs/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path })
+          })
+
+          if (response.ok) {
+            set({ isLoading: false })
+            return true
+          }
+
+          const errorData = await response.json()
+          set({ isLoading: false, error: errorData.error || 'Failed to create folder' })
+          return false
+        } catch (error) {
+          set({
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'Failed to create folder'
+          })
+          return false
+        }
+      },
+
+      // Track a game as recently played
+      trackRecentPlay: async (gameId) => {
+        const { getServerUrl } = get()
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/track-recent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: gameId })
+          })
+
+          return response.ok
+        } catch (error) {
+          console.error('Failed to track recent play:', error)
+          return false
+        }
+      },
+
+      // Get recently played games
+      getRecentPlays: async () => {
+        const { getServerUrl } = get()
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/recent-plays`)
+          if (response.ok) {
+            const data = await response.json()
+            return data.recentPlays.map((r: any) => r.id)
+          }
+          return []
+        } catch (error) {
+          console.error('Failed to fetch recent plays:', error)
+          return []
+        }
+      },
+
+      // Get favorite items
+      getFavorites: async () => {
+        const { getServerUrl } = get()
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/favorites`)
+          if (response.ok) {
+            const data = await response.json()
+            return data.favorites
+          }
+          return []
+        } catch (error) {
+          console.error('Failed to fetch favorites:', error)
+          return []
+        }
+      },
+
+      // Toggle favorite status of an item
+      toggleFavorite: async (itemId) => {
+        const { getServerUrl } = get()
+        const favorites = await get().getFavorites()
+        const isFavorite = favorites.includes(itemId)
+
+        try {
+          const response = await fetch(`${getServerUrl()}/api/favorites`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: itemId,
+              action: isFavorite ? 'remove' : 'add'
+            })
+          })
+
+          return response.ok
+        } catch (error) {
+          console.error('Failed to toggle favorite:', error)
           return false
         }
       }

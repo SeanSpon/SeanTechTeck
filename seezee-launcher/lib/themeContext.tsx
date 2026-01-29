@@ -1,116 +1,126 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import React, {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+} from "react"
 
-export type Theme = "ps5" | "steam" | "epic" | "retro"
+export type Rgb = { r: number; g: number; b: number }
 
-export interface RGBColor {
-  r: number
-  g: number
-  b: number
+type ThemeContextValue = {
+	currentRgb: Rgb
+	accentRgb: Rgb
+	setCurrentRgb: (rgb: Rgb) => void
+	setAccentRgb: (rgb: Rgb) => void
+	resetTheme: () => void
 }
 
-interface ThemeContextType {
-  theme: Theme
-  setTheme: (theme: Theme) => void
-  currentRgb: RGBColor
-  accentRgb: RGBColor
+const DEFAULT_RGB: Rgb = { r: 230, g: 57, b: 70 }
+const STORAGE_KEY = "seezee_theme_rgb_v1"
+
+const isValidRgb = (value: unknown): value is Rgb => {
+	if (!value || typeof value !== "object") return false
+	const maybe = value as Partial<Rgb>
+	return (
+		typeof maybe.r === "number" &&
+		typeof maybe.g === "number" &&
+		typeof maybe.b === "number" &&
+		Number.isFinite(maybe.r) &&
+		Number.isFinite(maybe.g) &&
+		Number.isFinite(maybe.b)
+	)
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+const clampByte = (n: number) => Math.max(0, Math.min(255, Math.round(n)))
 
-export const themes = {
-  ps5: {
-    name: "PS5 Dark",
-    primary: "#0070cc",
-    secondary: "#2d7ae1",
-    accent: "#00d9ff",
-    background: "#0a0a0f",
-    card: "rgba(255, 255, 255, 0.05)",
-    rgb: { r: 0, g: 112, b: 204 },
-    accentRgb: { r: 0, g: 217, b: 255 },
-  },
-  steam: {
-    name: "Steam Blue",
-    primary: "#1b2838",
-    secondary: "#2a475e",
-    accent: "#66c0f4",
-    background: "#0a0e13",
-    card: "rgba(27, 40, 56, 0.3)",
-    rgb: { r: 102, g: 192, b: 244 },
-    accentRgb: { r: 102, g: 192, b: 244 },
-  },
-  epic: {
-    name: "Epic Dark",
-    primary: "#121212",
-    secondary: "#2a2a2a",
-    accent: "#0078f2",
-    background: "#0a0a0a",
-    card: "rgba(42, 42, 42, 0.5)",
-    rgb: { r: 0, g: 120, b: 242 },
-    accentRgb: { r: 0, g: 120, b: 242 },
-  },
-  retro: {
-    name: "Retro Neon",
-    primary: "#1a1a2e",
-    secondary: "#16213e",
-    accent: "#39ff14",
-    background: "#0f0f1e",
-    card: "rgba(26, 26, 46, 0.6)",
-    rgb: { r: 57, g: 255, b: 20 },
-    accentRgb: { r: 255, g: 20, b: 147 },
-  },
+const normalizeRgb = (rgb: Rgb): Rgb => ({
+	r: clampByte(rgb.r),
+	g: clampByte(rgb.g),
+	b: clampByte(rgb.b),
+})
+
+const readStoredRgb = (): Rgb => {
+	if (typeof window === "undefined") return DEFAULT_RGB
+	try {
+		const raw = window.localStorage.getItem(STORAGE_KEY)
+		if (!raw) return DEFAULT_RGB
+		const parsed = JSON.parse(raw) as unknown
+		if (!isValidRgb(parsed)) return DEFAULT_RGB
+		return normalizeRgb(parsed)
+	} catch {
+		return DEFAULT_RGB
+	}
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("ps5")
-  const [currentRgb, setCurrentRgb] = useState<RGBColor>(themes.ps5.rgb)
-  const [accentRgb, setAccentRgb] = useState<RGBColor>(themes.ps5.accentRgb)
+const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-  useEffect(() => {
-    // Load saved theme from localStorage
-    const savedTheme = localStorage.getItem("seezee-theme") as Theme
-    if (savedTheme && themes[savedTheme]) {
-      setThemeState(savedTheme)
-      setCurrentRgb(themes[savedTheme].rgb)
-      setAccentRgb(themes[savedTheme].accentRgb)
-    }
-  }, [])
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+	// Initialize with DEFAULT_RGB to avoid hydration mismatch
+	const [accentRgb, setAccentRgbState] = useState<Rgb>(DEFAULT_RGB)
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme)
-    localStorage.setItem("seezee-theme", newTheme)
-    
-    // Apply theme colors to CSS variables
-    const themeColors = themes[newTheme]
-    setCurrentRgb(themeColors.rgb)
-    setAccentRgb(themeColors.accentRgb)
-    
-    document.documentElement.style.setProperty("--theme-primary", themeColors.primary)
-    document.documentElement.style.setProperty("--theme-secondary", themeColors.secondary)
-    document.documentElement.style.setProperty("--theme-accent", themeColors.accent)
-    document.documentElement.style.setProperty("--theme-background", themeColors.background)
-    document.documentElement.style.setProperty("--theme-card", themeColors.card)
-    document.documentElement.style.setProperty("--theme-rgb", `${themeColors.rgb.r}, ${themeColors.rgb.g}, ${themeColors.rgb.b}`)
-    document.documentElement.style.setProperty("--theme-accent-rgb", `${themeColors.accentRgb.r}, ${themeColors.accentRgb.g}, ${themeColors.accentRgb.b}`)
-  }
+	// Current is used for subtle background tinting; keep it aligned with accent for now.
+	const [currentRgb, setCurrentRgbState] = useState<Rgb>(DEFAULT_RGB)
 
-  useEffect(() => {
-    // Apply initial theme
-    setTheme(theme)
-  }, [])
+	// Load from localStorage on mount
+	useEffect(() => {
+		const stored = readStoredRgb()
+		setAccentRgbState(stored)
+		setCurrentRgbState(stored)
+	}, [])
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, currentRgb, accentRgb }}>
-      {children}
-    </ThemeContext.Provider>
-  )
+	const setAccentRgb = useCallback((rgb: Rgb) => {
+		setAccentRgbState(normalizeRgb(rgb))
+		setCurrentRgbState(normalizeRgb(rgb))
+	}, [])
+
+	const setCurrentRgb = useCallback((rgb: Rgb) => {
+		setCurrentRgbState(normalizeRgb(rgb))
+	}, [])
+
+	const resetTheme = useCallback(() => {
+		setAccentRgbState(DEFAULT_RGB)
+		setCurrentRgbState(DEFAULT_RGB)
+	}, [])
+
+	useEffect(() => {
+		if (typeof window === "undefined") return
+		try {
+			window.localStorage.setItem(STORAGE_KEY, JSON.stringify(accentRgb))
+		} catch {
+			// ignore
+		}
+
+		// Expose accent as CSS variable for Tailwind v4 color tokens.
+		const root = document.documentElement
+		root.style.setProperty(
+			"--seezee-accent",
+			`${accentRgb.r} ${accentRgb.g} ${accentRgb.b}`
+		)
+	}, [accentRgb])
+
+	const value = useMemo<ThemeContextValue>(
+		() => ({
+			currentRgb,
+			accentRgb,
+			setCurrentRgb,
+			setAccentRgb,
+			resetTheme,
+		}),
+		[currentRgb, accentRgb, setCurrentRgb, setAccentRgb, resetTheme]
+	)
+
+	return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext)
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider")
-  }
-  return context
+	const ctx = useContext(ThemeContext)
+	if (!ctx) {
+		throw new Error("useTheme must be used within ThemeProvider")
+	}
+	return ctx
 }
+

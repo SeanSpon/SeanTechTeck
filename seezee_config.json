@@ -1,18 +1,17 @@
 {
   "port": 5555,
+  "agents": [
+    {
+      "name": "PC Agent",
+      "url": "http://127.0.0.1:5050",
+      "enabled": false
+    }
+  ],
   "folders": [
     {
       "id": "a15a902f-56ed-4c69-8eaf-92c0315338db",
       "label": "Steam",
       "path": "C:\\Program Files (x86)\\Steam\\steamapps\\common",
-      "type": "games",
-      "scanDepth": 2,
-      "enabled": true
-    },
-    {
-      "id": "be7e8766-efbc-45bd-82fa-cc5e6b4bb538",
-      "label": "Epic Games ",
-      "path": "C:\\Program Files (x86)\\Epic Games",
       "type": "games",
       "scanDepth": 2,
       "enabled": true
@@ -99,7 +98,11 @@
   "manualUrls": [],
   "devices": [],
   "spotify": {
-    "accessToken": "4f479746f75b41a4bbe91d3a44b251fe",
-    "lastUpdated": "2026-01-29T01:02:23.363606Z"
+    "client_id": "6eb241b1049a428dbdbfa9cb52596c58a",
+    "client_secret": "REDACTED",
+    "access_token": "BQCSxI3S9ZzV4LpCHSRKTF-ZyqVU_ak418fC7aPphOAgUoH22LVgbxhC_7Tn-Qt_ia8WEfGzLc6WcMHaPMa-2qPyJDCQc9vzcZEhZ379YlqzqfRe9NmO-xxBtN_XKl8BgQfvTx5NIkGiVNc1X3UYIOydhU-lDqeIOdANE1DNxasX052_-HODUWd1JzRLyeSaozW9Or1M8lfx9Ec0X37JaJNtrYOwkXYW2aLKVAsu1CWuDW2Y8zZr9gkCEO5iNs8l4oWmoFvZ_X3x6QDVN948cg",
+    "refresh_token": "AQBjqeTedX21lfJgo3TfhpwmjS-HttmIA1vxV34egT8fUatY9IlRCMoUSP1Jl4hYdc2w9QfU8gmHZumC26bfM71Hc_gOEYUloFVJZ-MvYhjxSdWQ--CsYEy0Y2bvX-iDdxk",
+    "user_id": "8ppyp3w20kbhm30t1iac05dmu",
+    "lastUpdated": "2026-01-29T01:38:27.579981Z"
   }
 }

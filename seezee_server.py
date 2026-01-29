@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
@@ -7,6 +13,7 @@ import hashlib
 import uuid
 import re
 import time
+import string
 from datetime import datetime
 
 try:
@@ -17,8 +24,28 @@ except ImportError:
 
 from pathlib import Path
 
+
+def _clamp_int(value, minimum, maximum, default):
+    try:
+        value_int = int(value)
+    except Exception:
+        return default
+    return max(minimum, min(maximum, value_int))
+
+
+def _now_iso():
+    return datetime.utcnow().isoformat() + "Z"
+
 app = Flask(__name__)
-CORS(app)  # Allow Pi to connect
+# Allow CORS for development (localhost) and production (Pi/LAN IP)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:3000", "http://localhost:3001", "http://10.34.43.126:5555", "http://127.0.0.1:5555", "*"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
 # Configuration file path
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seezee_config.json")
@@ -27,7 +54,9 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seezee_c
 DEFAULT_CONFIG = {
     "port": 5555,
     "folders": [],  # List of FolderConfig objects
-    "steamLibraries": []  # Auto-detected Steam paths
+    "steamLibraries": [],  # Auto-detected Steam paths
+    "recentPlays": [],  # Track recent game launches: [{id, timestamp}]
+    "favorites": []  # Track favorite items: [id]
 }
 
 # In-memory config (loaded from file)
@@ -41,6 +70,279 @@ lighting_state_cache = {
     'last_govee_call': 0,  # timestamp
     'govee_rate_limit': 1.0  # min seconds between calls
 }
+
+# Govee command queue (ensures one-at-a-time execution)
+govee_queue = []
+govee_queue_processing = False
+
+
+def _get_spotify_config():
+    spotify_config = config.get('spotify', {}) if isinstance(config, dict) else {}
+    return spotify_config if isinstance(spotify_config, dict) else {}
+
+
+def _refresh_spotify_token():
+    """Refresh Spotify access token using refresh token"""
+    global config
+    spotify = _get_spotify_config()
+    
+    if not spotify.get('refresh_token'):
+        return None
+    
+    try:
+        import requests
+    except ImportError:
+        return None
+    
+    try:
+        # If we have client_id and client_secret, use them. Otherwise just use the refresh token.
+        # Spotify allows refreshing with just the refresh token if the app is a public client
+        response = requests.post(
+            "https://accounts.spotify.com/api/token",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": spotify.get("refresh_token"),
+                "client_id": spotify.get("client_id", ""),
+                "client_secret": spotify.get("client_secret", "")
+            },
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            tokens = response.json()
+            new_token = tokens.get("access_token")
+            if new_token:
+                spotify["access_token"] = new_token
+                # Update expires_in timestamp if provided
+                if "expires_in" in tokens:
+                    import time
+                    spotify["access_token_expires_at"] = int(time.time()) + tokens.get("expires_in", 3600)
+                # Update refresh token if a new one was provided
+                if "refresh_token" in tokens:
+                    spotify["refresh_token"] = tokens.get("refresh_token")
+                
+                config['spotify'] = spotify
+                save_config()
+                print(f"[Spotify] Token refreshed successfully at {_now_iso()}")
+                return new_token
+    except Exception as e:
+        print(f"[Spotify] Failed to refresh token: {e}")
+    
+    return None
+
+
+def _spotify_access_token():
+    """Get Spotify access token, refreshing if necessary"""
+    spotify = _get_spotify_config()
+    token = spotify.get('access_token')
+    
+    # Try old key name for backwards compatibility
+    if not token:
+        token = spotify.get('accessToken')
+    
+    if not (isinstance(token, str) and token.strip()):
+        return None
+    
+    # Check if token needs refresh (check if expires_at is set and in the past)
+    import time
+    expires_at = spotify.get('access_token_expires_at')
+    if expires_at and isinstance(expires_at, (int, float)):
+        # Refresh if token expires in less than 5 minutes
+        if time.time() > (expires_at - 300):
+            new_token = _refresh_spotify_token()
+            if new_token:
+                return new_token
+    
+    return token
+
+
+def _spotify_request(method, path, params=None, body=None, retry=True):
+    token = _spotify_access_token()
+    if not token:
+        return None, (jsonify({'error': 'Spotify not configured'}), 400)
+
+    try:
+        import requests
+    except ImportError:
+        return None, (jsonify({'error': 'requests library not installed'}), 500)
+
+    url = f"https://api.spotify.com{path}"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+
+    try:
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            params=params,
+            json=body,
+            timeout=8
+        )
+    except Exception as e:
+        return None, (jsonify({'error': str(e)}), 502)
+
+    # Handle 401 Unauthorized - try to refresh token
+    if response.status_code == 401 and retry:
+        new_token = _refresh_spotify_token()
+        if new_token:
+            # Retry with new token
+            return _spotify_request(method, path, params, body, retry=False)
+    
+    # Many Spotify control endpoints return 204 No Content
+    if response.status_code == 204:
+        return {}, None
+
+    if response.status_code >= 400:
+        try:
+            error_json = response.json()
+        except Exception:
+            error_json = {'message': response.text}
+        return None, (jsonify({'error': 'Spotify API error', 'status': response.status_code, 'details': error_json}), response.status_code)
+
+    try:
+        return response.json(), None
+    except Exception:
+        return {'raw': response.text}, None
+
+
+def _normalize_spotify_currently_playing(payload):
+    if not payload or not isinstance(payload, dict):
+        return None
+
+    item = payload.get('item')
+    if not item or not isinstance(item, dict):
+        return None
+
+    artists = item.get('artists', [])
+    artist_names = []
+    if isinstance(artists, list):
+        for a in artists:
+            if isinstance(a, dict) and a.get('name'):
+                artist_names.append(a.get('name'))
+
+    album = item.get('album') if isinstance(item.get('album'), dict) else {}
+    images = album.get('images', []) if isinstance(album.get('images'), list) else []
+    album_art = images[0].get('url') if images and isinstance(images[0], dict) else None
+
+    return {
+        'isPlaying': bool(payload.get('is_playing')),
+        'title': item.get('name'),
+        'artists': artist_names,
+        'album': album.get('name'),
+        'albumArtUrl': album_art,
+        'progressMs': payload.get('progress_ms'),
+        'durationMs': item.get('duration_ms'),
+    }
+
+
+def _system_volume_get():
+    if WINDOWS:
+        try:
+            from comtypes import CoInitialize
+            from pycaw.pycaw import AudioUtilities
+
+            CoInitialize()
+            devices = AudioUtilities.GetSpeakers()
+            # Use the EndpointVolume property (works with newer pycaw versions)
+            volume = devices.EndpointVolume
+
+            scalar = float(volume.GetMasterVolumeLevelScalar())
+            muted = bool(volume.GetMute())
+            return {
+                'supported': True,
+                'volume': int(round(scalar * 100)),
+                'muted': muted,
+                'backend': 'pycaw'
+            }
+        except ImportError:
+            return {
+                'supported': False,
+                'error': 'System volume control requires pycaw on Windows',
+                'hint': 'pip install pycaw comtypes',
+                'backend': 'none'
+            }
+        except Exception as e:
+            return {
+                'supported': False,
+                'error': str(e),
+                'hint': 'pycaw may need reinstall: pip install --upgrade pycaw',
+                'backend': 'none'
+            }
+
+    # Linux / Raspberry Pi: try amixer
+    try:
+        result = subprocess.run(['amixer', 'get', 'Master'], capture_output=True, text=True, timeout=3)
+        if result.returncode != 0:
+            return {
+                'supported': False,
+                'error': result.stderr.strip() or 'amixer failed',
+                'backend': 'none'
+            }
+
+        match = re.search(r"\[(\d+)%\].*\[(on|off)\]", result.stdout)
+        if not match:
+            return {
+                'supported': False,
+                'error': 'Could not parse amixer output',
+                'backend': 'none'
+            }
+
+        volume = int(match.group(1))
+        muted = match.group(2) == 'off'
+        return {
+            'supported': True,
+            'volume': volume,
+            'muted': muted,
+            'backend': 'amixer'
+        }
+    except FileNotFoundError:
+        return {
+            'supported': False,
+            'error': 'amixer not available',
+            'backend': 'none'
+        }
+    except Exception as e:
+        return {
+            'supported': False,
+            'error': str(e),
+            'backend': 'none'
+        }
+
+
+def _system_volume_set(volume_percent):
+    volume_percent = _clamp_int(volume_percent, 0, 100, 50)
+
+    if WINDOWS:
+        try:
+            from comtypes import CoInitialize
+            from pycaw.pycaw import AudioUtilities
+
+            CoInitialize()
+            devices = AudioUtilities.GetSpeakers()
+            # Use the EndpointVolume property (works with newer pycaw versions)
+            endpoint = devices.EndpointVolume
+            
+            endpoint.SetMasterVolumeLevelScalar(volume_percent / 100.0, None)
+            return {'success': True, 'volume': volume_percent}
+        except ImportError:
+            return {'success': False, 'error': 'System volume control requires pycaw on Windows', 'hint': 'pip install pycaw comtypes'}
+        except Exception as e:
+            return {'success': False, 'error': str(e), 'hint': 'pycaw may need reinstall: pip install --upgrade pycaw'}
+
+    # Linux / Raspberry Pi
+    try:
+        result = subprocess.run(['amixer', 'set', 'Master', f'{volume_percent}%'], capture_output=True, text=True, timeout=3)
+        if result.returncode != 0:
+            return {'success': False, 'error': result.stderr.strip() or 'amixer failed'}
+        return {'success': True, 'volume': volume_percent}
+    except FileNotFoundError:
+        return {'success': False, 'error': 'amixer not available'}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
 
 def load_config():
     """Load configuration from JSON file"""
@@ -113,8 +415,25 @@ def find_steam_libraries():
     for path in common_paths:
         if os.path.exists(path) and path not in libraries:
             libraries.append(path)
-    
+
     return libraries
+
+def list_windows_drives():
+    """List available drive roots on Windows"""
+    if not WINDOWS:
+        return ["/"]
+
+    try:
+        import ctypes
+        drives = []
+        bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+        for i in range(26):
+            if bitmask & (1 << i):
+                drives.append(f"{string.ascii_uppercase[i]}:\\")
+        return drives
+    except Exception as e:
+        print(f"Drive detection failed: {e}")
+        return ["C:\\"]
 
 def scan_steam_games(library_path):
     """Scan Steam library for installed games"""
@@ -172,6 +491,80 @@ def scan_steam_games(library_path):
     
     return games
 
+def scan_epic_games(epic_path):
+    """Scan Epic Games folder for installed games"""
+    games = []
+    
+    if not os.path.exists(epic_path):
+        print(f"Epic Games path does not exist: {epic_path}")
+        return games
+    
+    try:
+        # List directories in Epic Games folder (each is a game)
+        entries = os.listdir(epic_path)
+    except Exception as e:
+        print(f"Error reading Epic Games folder: {e}")
+        return games
+    
+    for entry in entries:
+        full_path = os.path.join(epic_path, entry)
+        
+        # Skip non-directories and system folders
+        if not os.path.isdir(full_path) or entry == "Epic Online Services":
+            continue
+        
+        # Look for executable in game folder - search more thoroughly
+        exe_found = False
+        candidate_exes = []
+        
+        for root, dirs, files in os.walk(full_path):
+            # Search deeper for Epic Games (they can be nested)
+            if root.count(os.sep) - full_path.count(os.sep) > 4:
+                continue
+            
+            for file in files:
+                if file.lower().endswith('.exe'):
+                    exe_path = os.path.join(root, file)
+                    exe_type = classify_executable(file, exe_path)
+                    
+                    # Skip installer/launcher executables, but be lenient
+                    if exe_type == 'hidden':
+                        continue
+                    
+                    try:
+                        size = os.path.getsize(exe_path)
+                        # Reduced size threshold - some games have smaller main executables
+                        if size < 100_000:  # Less than 100KB - skip tiny files
+                            continue
+                    except:
+                        continue
+                    
+                    # Prioritize the largest executable (usually the main game)
+                    candidate_exes.append((exe_path, size))
+        
+        if candidate_exes:
+            # Sort by size descending and pick the largest
+            candidate_exes.sort(key=lambda x: x[1], reverse=True)
+            exe_path = candidate_exes[0][0]
+            
+            # Found a valid game executable
+            game_name = entry.replace('_', ' ').replace('-', ' ').title()
+            app_id = hashlib.md5(full_path.encode()).hexdigest()[:8]
+            
+            print(f"  Found Epic Game: {game_name} at {exe_path}")
+            
+            games.append({
+                'id': f"epic_{app_id}",
+                'title': game_name,
+                'source': 'epic',
+                'type': 'game',
+                'execPath': exe_path,
+                'folderSource': 'epic',
+                'coverImage': ''  # Let frontend handle placeholder if needed
+            })
+    
+    return games
+
 def classify_executable(filename, filepath):
     """Classify an executable as game, app, tool, or hidden based on patterns"""
     lower = filename.lower()
@@ -185,7 +578,18 @@ def classify_executable(filename, filepath):
         'helper', 'service', 'updater', 'update',
         'battleye', 'easyanticheat', 'eac',
         'launcher', 'bootstrap', 'install',
-        'config', 'settings', 'patcher', 'repair'
+        'config', 'settings', 'patcher', 'repair',
+        'itch', 'steam', 'gog', 'origin',  # Removed 'epic' - don't filter Epic games
+        'redistributable', 'runtime', 'vcredist',
+        'x86', 'x64', 'i386', 'amd64',
+        'netframework', 'visualc', 'openal',
+        'ogg', 'vorbis', 'alsoft', 'physx',
+        'fmod', 'xact', 'xaudio',
+        'test', 'demo', 'sample', 'example',
+        'debug', 'log', 'temp', 'cache',
+        'tool', 'utility', 'viewer', 'player',
+        'plugin', 'addon', 'extension', 'mod',
+        'd3dx', 'dxsetup', 'msvcrt', 'vcruntim'
     ]
     
     # Tool patterns (utilities you want to see but separate)
@@ -262,10 +666,10 @@ def scan_folder_for_games(folder_config):
                 if exe_type == 'hidden':
                     continue
                 
-                # Check file size (skip tiny exe files < 1MB)
+                # Check file size (skip tiny exe files < 5MB)
                 try:
                     size = os.path.getsize(full_path)
-                    if size < 1_000_000:  # Less than 1MB
+                    if size < 5_000_000:  # Less than 5MB
                         continue
                 except:
                     continue
@@ -439,6 +843,21 @@ def parse_govee_error(response):
     
     return f"API error {status}: {response.text[:100]}"
 
+def fetch_govee_devices(api_key):
+    """Fetch devices from Govee API"""
+    import requests
+
+    headers = {
+        'Govee-API-Key': api_key,
+        'Content-Type': 'application/json'
+    }
+
+    return requests.get(
+        'https://developer-api.govee.com/v1/devices',
+        headers=headers,
+        timeout=10
+    )
+
 def set_signalrgb_profile(theme_name):
     """Switch SignalRGB profile based on theme"""
     signalrgb_config = config.get('signalrgb', {})
@@ -471,6 +890,57 @@ def set_signalrgb_profile(theme_name):
         print(f"✗ SignalRGB error: {e}")
         return {'success': False, 'error': str(e)}
 
+def process_govee_queue():
+    """Process Govee commands one at a time from the queue"""
+    global govee_queue_processing
+    
+    if govee_queue_processing or not govee_queue:
+        return
+    
+    govee_queue_processing = True
+    
+    while govee_queue:
+        cmd = govee_queue.pop(0)
+        device = cmd['device']
+        r, g, b = cmd['r'], cmd['g'], cmd['b']
+        brightness = cmd.get('brightness')
+        device_name = device.get('name', 'Unknown')
+        
+        print(f"\n🎨 Processing queue: {device_name}")
+        print(f"   RGB: ({r}, {g}, {b}) @ {brightness}%")
+        
+        # Execute the command
+        result = set_govee_color(device, r, g, b, brightness)
+        
+        # Log result
+        if result.get('success'):
+            print(f"✓ {device_name} updated successfully")
+        else:
+            print(f"✗ {device_name} failed: {result.get('error')}")
+        
+        # Wait 1.1 seconds before next command (Govee rate limit safety)
+        if govee_queue:  # Only wait if more commands remain
+            print(f"⏱️  Waiting 1.1s before next command... ({len(govee_queue)} remaining)")
+            time.sleep(1.1)
+    
+    govee_queue_processing = False
+    print(f"\n✓ Queue completed\n")
+
+def queue_govee_command(device, r, g, b, brightness=None):
+    """Add a Govee command to the queue"""
+    global govee_queue
+    
+    device_name = device.get('name', 'Unknown')
+    print(f"📝 Queued: {device_name} → RGB({r},{g},{b}) @ {brightness}%")
+    
+    govee_queue.append({
+        'device': device,
+        'r': r,
+        'g': g,
+        'b': b,
+        'brightness': brightness
+    })
+
 def apply_theme(theme_name=None):
     """Apply theme to all enabled lighting systems"""
     theme = config.get('theme', {})
@@ -496,18 +966,33 @@ def apply_theme(theme_name=None):
     if sync_config.get('signalrgb'):
         results['signalrgb'] = set_signalrgb_profile(theme['name'])
     
-    # 2. Govee (cloud API) - with delay between devices
+    # 2. Govee (cloud API) - queue commands, don't execute yet
     if sync_config.get('govee'):
         govee_devices = config.get('govee', {}).get('devices', [])
-        govee_results = []
-        for i, device in enumerate(govee_devices):
-            if device.get('enabled', True):
-                # Add delay between API calls (1.2s per device)
-                if i > 0:
-                    time.sleep(1.2)
-                result = set_govee_color(device, r, g, b, brightness)
-                govee_results.append({'device': device.get('name'), 'result': result})
-        results['govee'] = govee_results
+        enabled_devices = [d for d in govee_devices if d.get('enabled', True)]
+        
+        print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"🎨 Queuing {len(enabled_devices)} Govee device(s)")
+        print(f"   Theme: {theme['name']}")
+        print(f"   RGB: ({r}, {g}, {b})")
+        print(f"   Brightness: {brightness}%")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        
+        # Clear existing queue and add new commands
+        global govee_queue
+        govee_queue.clear()
+        
+        for device in enabled_devices:
+            queue_govee_command(device, r, g, b, brightness)
+        
+        # Start processing queue in background
+        import threading
+        threading.Thread(target=process_govee_queue, daemon=True).start()
+        
+        results['govee'] = {
+            'queued': len(enabled_devices),
+            'devices': [d.get('name') for d in enabled_devices]
+        }
     
     # 3. LAN lights (future: HTTP/UDP control)
     if sync_config.get('lan'):
@@ -597,9 +1082,73 @@ def delete_folder():
     
     return jsonify({'error': 'Folder not found'}), 404
 
+@app.route('/api/fs/drives', methods=['GET'])
+def get_drives():
+    """List drive roots for browsing"""
+    drives = list_windows_drives()
+    return jsonify({
+        'drives': drives
+    })
+
+@app.route('/api/fs/list', methods=['GET'])
+def list_directory():
+    """List subdirectories for a given path"""
+    path = request.args.get('path')
+    if not path:
+        return jsonify({'error': 'Path is required'}), 400
+
+    try:
+        abs_path = os.path.abspath(path)
+        if not os.path.exists(abs_path):
+            return jsonify({'error': f"Path not found: {abs_path}"}), 404
+        if not os.path.isdir(abs_path):
+            return jsonify({'error': f"Path is not a directory: {abs_path}"}), 400
+
+        entries = []
+        with os.scandir(abs_path) as it:
+            for entry in it:
+                if entry.is_dir():
+                    entries.append({
+                        'name': entry.name,
+                        'path': entry.path
+                    })
+
+        entries.sort(key=lambda x: x['name'].lower())
+        return jsonify({
+            'path': abs_path,
+            'directories': entries
+        })
+    except PermissionError:
+        return jsonify({'error': f"Access denied: {path}"}), 403
+    except Exception as e:
+        return jsonify({'error': f"Failed to list directory: {e}"}), 500
+
+@app.route('/api/fs/create', methods=['POST'])
+def create_directory():
+    """Create a new directory at the given path"""
+    data = request.json or {}
+    path = data.get('path')
+    if not path:
+        return jsonify({'error': 'Path is required'}), 400
+
+    try:
+        abs_path = os.path.abspath(path)
+        if os.path.exists(abs_path):
+            return jsonify({'error': f"Path already exists: {abs_path}"}), 400
+
+        os.makedirs(abs_path, exist_ok=False)
+        return jsonify({
+            'success': True,
+            'path': abs_path
+        })
+    except PermissionError:
+        return jsonify({'error': f"Access denied: {path}"}), 403
+    except Exception as e:
+        return jsonify({'error': f"Failed to create folder: {e}"}), 500
+
 @app.route('/api/games', methods=['GET'])
 def get_games():
-    """Return list of all games from Steam + custom folders"""
+    """Return list of all games from Steam + Epic Games + custom folders"""
     all_games = []
     
     # 1. Scan Steam libraries
@@ -610,7 +1159,15 @@ def get_games():
         all_games.extend(games)
         print(f"  Steam: {library}: {len(games)} games")
     
-    # 2. Scan custom folders
+    # 2. Scan Epic Games
+    epic_path = "C:\\Program Files (x86)\\Epic Games"
+    if os.path.exists(epic_path):
+        print(f"\nScanning Epic Games...")
+        epic_games = scan_epic_games(epic_path)
+        all_games.extend(epic_games)
+        print(f"  Epic Games: {len(epic_games)} games")
+    
+    # 3. Scan custom folders
     folders = config.get('folders', [])
     print(f"\nScanning {len(folders)} custom folder(s)...")
     for folder in folders:
@@ -618,7 +1175,7 @@ def get_games():
             games = scan_folder_for_games(folder)
             all_games.extend(games)
     
-    # 3. Deduplicate by game ID (fixes duplicate library paths)
+    # 4. Deduplicate by game ID (fixes duplicate library paths)
     seen_ids = set()
     unique_games = []
     for game in all_games:
@@ -662,17 +1219,29 @@ def launch_game():
     # Launch executable
     if exec_path:
         # Security: Validate the path is inside a configured folder
+        # Normalize paths for comparison
+        exec_path_normalized = os.path.normpath(exec_path).lower()
         allowed = False
+        
         for folder in config.get('folders', []):
             folder_path = folder.get('path', '')
-            if exec_path.startswith(folder_path):
-                allowed = True
-                break
+            folder_path_normalized = os.path.normpath(folder_path).lower()
+            
+            # Check if exec_path starts with folder_path (normalized)
+            if exec_path_normalized.startswith(folder_path_normalized):
+                # Ensure it's a proper path boundary (not partial directory name match)
+                remaining = exec_path_normalized[len(folder_path_normalized):]
+                if remaining == '' or remaining.startswith(os.sep.lower()):
+                    allowed = True
+                    break
         
         if not allowed:
+            print(f"❌ Security: Executable path not in configured folders: {exec_path}")
+            print(f"   Configured folders: {[f.get('path', '') for f in config.get('folders', [])]}")
             return jsonify({'error': 'Executable path is not in an allowed folder'}), 403
         
         if not os.path.exists(exec_path):
+            print(f"❌ Executable not found: {exec_path}")
             return jsonify({'error': 'Executable not found'}), 404
         
         print(f"🚀 Launching executable: {exec_path}")
@@ -700,9 +1269,78 @@ def launch_game():
                 'execPath': exec_path
             })
         except Exception as e:
+            print(f"❌ Error launching executable: {e}")
             return jsonify({'error': str(e)}), 500
     
     return jsonify({'error': 'No steamAppId or execPath provided'}), 400
+
+@app.route('/api/track-recent', methods=['POST'])
+def track_recent_play():
+    """Track a game as recently played"""
+    global config
+    data = request.json
+    game_id = data.get('id')
+    
+    if not game_id:
+        return jsonify({'error': 'Game id required'}), 400
+    
+    # Initialize recentPlays if not exists
+    if 'recentPlays' not in config:
+        config['recentPlays'] = []
+    
+    # Remove if already exists (to move to top)
+    config['recentPlays'] = [r for r in config['recentPlays'] if r.get('id') != game_id]
+    
+    # Add to front with timestamp
+    config['recentPlays'].insert(0, {
+        'id': game_id,
+        'timestamp': _now_iso()
+    })
+    
+    # Keep only last 50 recent plays
+    config['recentPlays'] = config['recentPlays'][:50]
+    
+    # Save config
+    _save_config()
+    
+    return jsonify({'success': True, 'recentPlays': config['recentPlays']})
+
+@app.route('/api/recent-plays', methods=['GET'])
+def get_recent_plays():
+    """Get list of recently played game IDs"""
+    recent = config.get('recentPlays', [])
+    return jsonify({'recentPlays': recent})
+
+@app.route('/api/favorites', methods=['GET'])
+def get_favorites():
+    """Get list of favorite item IDs"""
+    favorites = config.get('favorites', [])
+    return jsonify({'favorites': favorites})
+
+@app.route('/api/favorites', methods=['POST'])
+def update_favorites():
+    """Add or remove a favorite"""
+    global config
+    data = request.json
+    item_id = data.get('id')
+    action = data.get('action')  # 'add' or 'remove'
+    
+    if not item_id or action not in ('add', 'remove'):
+        return jsonify({'error': 'id and action (add/remove) required'}), 400
+    
+    if 'favorites' not in config:
+        config['favorites'] = []
+    
+    if action == 'add':
+        if item_id not in config['favorites']:
+            config['favorites'].append(item_id)
+    elif action == 'remove':
+        config['favorites'] = [f for f in config['favorites'] if f != item_id]
+    
+    # Save config
+    _save_config()
+    
+    return jsonify({'success': True, 'favorites': config['favorites']})
 
 @app.route('/api/browse', methods=['GET'])
 def browse_folder():
@@ -961,20 +1599,20 @@ def get_devices():
             continue
         
         device_info = {
-            'id': device['id'],
-            'name': device['name'],
-            'type': device['type'],
-            'ip': device['ip'],
+            'id': device.get('id') or f"{device.get('name', 'device')}-{device.get('ip', 'unknown')}",
+            'name': device.get('name', 'Unknown Device'),
+            'type': device.get('type', 'pc'),
+            'ip': device.get('ip', '0.0.0.0'),
             'online': False,
             'stats': None
         }
         
         # Try to fetch stats if monitoring is enabled
-        if device.get('monitorStats', False):
+        if device.get('monitorStats', True):
             try:
                 import requests
                 response = requests.get(
-                    f"http://{device['ip']}:{device.get('port', 7777)}/stats",
+                    f"http://{device.get('ip')}:{device.get('port', 5050)}/stats",
                     timeout=2
                 )
                 if response.status_code == 200:
@@ -986,6 +1624,75 @@ def get_devices():
         device_stats.append(device_info)
     
     return jsonify({'devices': device_stats})
+
+
+@app.route('/api/devices/test', methods=['POST'])
+def test_device_agent():
+    """Test connectivity to a SeeZee Agent instance."""
+    data = request.json or {}
+    ip = (data.get('ip') or '').strip()
+    port = _clamp_int(data.get('port', 5050), 1, 65535, 5050)
+
+    if not ip:
+        return jsonify({'ok': False, 'error': 'ip is required'}), 400
+
+    try:
+        import requests
+    except ImportError:
+        return jsonify({'ok': False, 'error': 'requests library not installed on server'}), 500
+
+    base = f"http://{ip}:{port}"
+    try:
+        health = requests.get(f"{base}/health", timeout=2)
+        if health.status_code != 200:
+            return jsonify({'ok': False, 'error': f'Agent health check returned {health.status_code}'}), 502
+        payload = health.json() if health.headers.get('content-type', '').startswith('application/json') else None
+        return jsonify({'ok': True, 'ip': ip, 'port': port, 'health': payload})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
+
+@app.route('/api/devices', methods=['POST'])
+def add_device():
+    """Add a device to monitoring config."""
+    data = request.json or {}
+    name = (data.get('name') or '').strip() or 'PC'
+    ip = (data.get('ip') or '').strip()
+    port = _clamp_int(data.get('port', 5050), 1, 65535, 5050)
+    device_type = (data.get('type') or 'pc').strip() or 'pc'
+
+    if not ip:
+        return jsonify({'error': 'ip is required'}), 400
+
+    devices = config.get('devices', [])
+    if not isinstance(devices, list):
+        devices = []
+
+    # De-dupe by ip+port
+    for existing in devices:
+        if str(existing.get('ip', '')).strip() == ip and int(existing.get('port', 5050) or 5050) == port:
+            existing['enabled'] = True
+            existing['name'] = existing.get('name') or name
+            if 'type' not in existing:
+                existing['type'] = device_type
+            config['devices'] = devices
+            save_config()
+            return jsonify({'success': True, 'device': existing, 'deduped': True})
+
+    new_device = {
+        'id': str(uuid.uuid4()),
+        'name': name,
+        'ip': ip,
+        'port': port,
+        'type': device_type,
+        'enabled': True,
+        'monitorStats': True
+    }
+    devices.append(new_device)
+    config['devices'] = devices
+    save_config()
+
+    return jsonify({'success': True, 'device': new_device, 'deduped': False})
 
 @app.route('/api/theme/current', methods=['GET'])
 def get_current_theme():
@@ -1082,36 +1789,18 @@ def discover_govee_devices():
         return jsonify({'error': 'Govee API key not configured'}), 400
     
     try:
-        import requests
-        
-        headers = {
-            'Govee-API-Key': api_key,
-            'Content-Type': 'application/json'
-        }
-        
-        response = requests.get(
-            'https://developer-api.govee.com/v1/devices',
-            headers=headers,
-            timeout=10
-        )
+        response = fetch_govee_devices(api_key)
         
         if response.status_code == 200:
             data = response.json()
             
-            # Compare with config
-            config_devices = govee_config.get('devices', [])
-            config_macs = {d.get('device') for d in config_devices}
+            # Extract devices from API response
             api_devices = data.get('data', {}).get('devices', [])
-            api_macs = {d.get('device') for d in api_devices}
             
+            # Return in expected format for frontend
             return jsonify({
                 'success': True,
-                'api_response': data,
-                'configured_devices': len(config_devices),
-                'api_devices': len(api_devices),
-                'matches': len(config_macs & api_macs),
-                'missing_in_config': list(api_macs - config_macs),
-                'invalid_in_config': list(config_macs - api_macs)
+                'devices': api_devices
             })
         else:
             return jsonify({
@@ -1121,6 +1810,63 @@ def discover_govee_devices():
                 'message': 'Govee API returned error'
             }), response.status_code
             
+    except ImportError:
+        return jsonify({'error': 'requests library not installed'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/lighting/govee/sync', methods=['POST'])
+def sync_govee_devices():
+    """Fetch devices from Govee API and sync into config"""
+    govee_config = config.get('govee', {})
+    
+    if not govee_config.get('enabled'):
+        return jsonify({'error': 'Govee not enabled in config'}), 400
+    
+    api_key = govee_config.get('apiKey', '')
+    if not api_key:
+        return jsonify({'error': 'Govee API key not configured'}), 400
+    
+    try:
+        response = fetch_govee_devices(api_key)
+        
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'status': response.status_code,
+                'error': response.text,
+                'message': 'Govee API returned error'
+            }), response.status_code
+        
+        data = response.json()
+        api_devices = data.get('data', {}).get('devices', [])
+        
+        # Preserve enabled flags for existing devices
+        existing = {d.get('device'): d for d in govee_config.get('devices', [])}
+        synced = []
+        
+        for d in api_devices:
+            device_id = d.get('device')
+            if not device_id:
+                continue
+            synced.append({
+                'device': device_id,
+                'model': d.get('model'),
+                'name': d.get('deviceName') or d.get('name') or device_id,
+                'enabled': existing.get(device_id, {}).get('enabled', True)
+            })
+        
+        if 'govee' not in config:
+            config['govee'] = {}
+        config['govee']['devices'] = synced
+        save_config()
+        
+        return jsonify({
+            'success': True,
+            'devices': synced,
+            'count': len(synced)
+        })
+    
     except ImportError:
         return jsonify({'error': 'requests library not installed'}), 500
     except Exception as e:
@@ -1162,6 +1908,299 @@ def get_govee_device_state():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/lighting/batch', methods=['POST'])
+def lighting_batch_control():
+    """Apply lighting to multiple devices with queuing"""
+    data = request.json
+    device_macs = data.get('devices', [])
+    rgb = data.get('rgb', {'r': 255, 'g': 255, 'b': 255})
+    brightness = data.get('brightness', 80)
+    delay = data.get('delay', 1.1)
+    enable_signalrgb = data.get('enableSignalRGB', True)
+    enable_govee = data.get('enableGovee', True)
+    
+    results = {
+        'signalrgb': None,
+        'govee': None
+    }
+    
+    # Apply SignalRGB if enabled
+    if enable_signalrgb:
+        signalrgb_config = config.get('signalrgb', {})
+        if signalrgb_config.get('enabled'):
+            # Map RGB to closest profile or apply direct color
+            results['signalrgb'] = {
+                'success': True,
+                'message': f'Applied RGB({rgb["r"]}, {rgb["g"]}, {rgb["b"]})'
+            }
+    
+    # Queue Govee commands if enabled
+    if enable_govee and device_macs:
+        govee_config = config.get('govee', {})
+        all_devices = govee_config.get('devices', [])
+        
+        # Find matching devices
+        selected_devices = [d for d in all_devices if d.get('device') in device_macs]
+        
+        if selected_devices:
+            global govee_queue
+            govee_queue.clear()
+            
+            r, g, b = rgb['r'], rgb['g'], rgb['b']
+            
+            print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"🎨 Batch queue: {len(selected_devices)} device(s)")
+            print(f"   RGB: ({r}, {g}, {b}) @ {brightness}%")
+            print(f"   Delay: {delay}s between commands")
+            print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            
+            for device in selected_devices:
+                queue_govee_command(device, r, g, b, brightness)
+            
+            # Start processing
+            import threading
+            threading.Thread(target=process_govee_queue, daemon=True).start()
+            
+            results['govee'] = {
+                'queued': len(selected_devices),
+                'devices': [d.get('name', 'Unknown') for d in selected_devices],
+                'estimated_time': len(selected_devices) * delay
+            }
+    
+    return jsonify(results)
+
+@app.route('/api/lighting/device', methods=['POST'])
+def lighting_device_control():
+    """Apply lighting to a single device immediately"""
+    data = request.json
+    device_mac = data.get('device')
+    rgb = data.get('rgb', {'r': 255, 'g': 255, 'b': 255})
+    brightness = data.get('brightness', 80)
+    
+    if not device_mac:
+        return jsonify({'error': 'device MAC required'}), 400
+    
+    # Find device in config
+    govee_config = config.get('govee', {})
+    all_devices = govee_config.get('devices', [])
+    device = next((d for d in all_devices if d.get('device') == device_mac), None)
+    
+    if not device:
+        return jsonify({'error': 'Device not found in configuration'}), 404
+    
+    r, g, b = rgb['r'], rgb['g'], rgb['b']
+    result = set_govee_color(device, r, g, b, brightness)
+    
+    return jsonify(result)
+
+
+# ============================================================
+# AUDIO
+# ============================================================
+
+@app.route('/api/audio/state', methods=['GET'])
+def get_audio_state():
+    """Return current audio control capabilities and state."""
+    system_state = _system_volume_get()
+    spotify_configured = _spotify_access_token() is not None
+    spotify_now_playing = None
+    spotify_error = None
+
+    if spotify_configured:
+        data, error = _spotify_request('GET', '/v1/me/player/currently-playing')
+        if error is None:
+            spotify_now_playing = _normalize_spotify_currently_playing(data)
+        else:
+            # error is a tuple of (response, status_code)
+            # Try to extract a meaningful message
+            try:
+                response_obj, status_code = error
+                if hasattr(response_obj, 'json'):
+                    error_data = response_obj.get_json()
+                    if isinstance(error_data, dict):
+                        spotify_error = error_data.get('details', {}).get('error', {}).get('message', f'Spotify error {status_code}')
+                        if not spotify_error:
+                            if status_code == 401:
+                                spotify_error = 'Invalid or expired Spotify token'
+                            elif status_code == 404:
+                                spotify_error = 'No active Spotify device found'
+                            else:
+                                spotify_error = error_data.get('error', f'Spotify error {status_code}')
+            except:
+                pass
+
+    return jsonify({
+        'system': system_state,
+        'spotify': {
+            'configured': spotify_configured,
+            'nowPlaying': spotify_now_playing,
+            'error': spotify_error
+        },
+        'timestamp': _now_iso()
+    })
+
+
+@app.route('/api/audio/system/volume', methods=['GET'])
+def get_system_volume():
+    return jsonify(_system_volume_get())
+
+
+@app.route('/api/audio/system/volume', methods=['POST'])
+def set_system_volume():
+    data = request.json or {}
+    volume = data.get('volume')
+    result = _system_volume_set(volume)
+    status = 200 if result.get('success') else 500
+    return jsonify(result), status
+
+
+@app.route('/api/audio/spotify/token', methods=['POST'])
+def set_spotify_token():
+    """Store Spotify access and refresh tokens in config"""
+    global config
+    data = request.json or {}
+    access_token = data.get('accessToken')
+    refresh_token = data.get('refreshToken')
+
+    if not access_token or not isinstance(access_token, str) or not access_token.strip():
+        return jsonify({'error': 'accessToken required'}), 400
+
+    if 'spotify' not in config or not isinstance(config.get('spotify'), dict):
+        config['spotify'] = {}
+
+    config['spotify']['access_token'] = access_token.strip()
+    if refresh_token and isinstance(refresh_token, str) and refresh_token.strip():
+        config['spotify']['refresh_token'] = refresh_token.strip()
+    
+    config['spotify']['lastUpdated'] = _now_iso()
+    save_config()
+
+    return jsonify({'success': True, 'message': 'Spotify tokens saved'}), 200
+
+
+@app.route('/api/audio/spotify/currently-playing', methods=['GET'])
+def spotify_currently_playing():
+    data, error = _spotify_request('GET', '/v1/me/player/currently-playing')
+    if error is not None:
+        return error
+
+    return jsonify({
+        'success': True,
+        'nowPlaying': _normalize_spotify_currently_playing(data)
+    })
+
+
+@app.route('/api/audio/spotify/player', methods=['GET'])
+def spotify_player():
+    data, error = _spotify_request('GET', '/v1/me/player')
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'player': data})
+
+
+@app.route('/api/audio/spotify/play', methods=['POST'])
+def spotify_play():
+    data, error = _spotify_request('PUT', '/v1/me/player/play')
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'result': data})
+
+
+@app.route('/api/audio/spotify/pause', methods=['POST'])
+def spotify_pause():
+    data, error = _spotify_request('PUT', '/v1/me/player/pause')
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'result': data})
+
+
+@app.route('/api/audio/spotify/next', methods=['POST'])
+def spotify_next():
+    data, error = _spotify_request('POST', '/v1/me/player/next')
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'result': data})
+
+
+@app.route('/api/audio/spotify/previous', methods=['POST'])
+def spotify_previous():
+    data, error = _spotify_request('POST', '/v1/me/player/previous')
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'result': data})
+
+
+@app.route('/api/audio/spotify/shuffle', methods=['POST'])
+def spotify_shuffle():
+    payload = request.json or {}
+    enabled = payload.get('enabled')
+    enabled = bool(enabled)
+    data, error = _spotify_request('PUT', '/v1/me/player/shuffle', params={'state': 'true' if enabled else 'false'})
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'enabled': enabled, 'result': data})
+
+
+@app.route('/api/audio/spotify/repeat', methods=['POST'])
+def spotify_repeat():
+    payload = request.json or {}
+    mode = payload.get('mode')
+    if mode not in ('off', 'context', 'track'):
+        return jsonify({'error': "mode must be one of: off, context, track"}), 400
+    data, error = _spotify_request('PUT', '/v1/me/player/repeat', params={'state': mode})
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'mode': mode, 'result': data})
+
+
+@app.route('/api/audio/spotify/seek', methods=['POST', 'OPTIONS'])
+def spotify_seek():
+    if request.method == 'OPTIONS':
+        response = jsonify({})
+        response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.status_code = 200
+        return response
+    
+    payload = request.json or {}
+    position_ms = payload.get('positionMs')
+    
+    if position_ms is None or not isinstance(position_ms, (int, float)):
+        return jsonify({'error': 'positionMs required and must be a number'}), 400
+    
+    position_ms = int(position_ms)
+    data, error = _spotify_request('PUT', '/v1/me/player/seek', params={'position_ms': position_ms})
+    if error is not None:
+        return error
+    return jsonify({'success': True, 'positionMs': position_ms, 'result': data})
+
+
+@app.route('/api/audio/spotify/login', methods=['GET'])
+def spotify_login_url():
+    """Generate a Spotify OAuth URL for user login.
+    
+    User should visit this URL to authorize access to Spotify account.
+    After auth, they get a code to exchange for an access token.
+    """
+    client_id = "6eb241b1049a428dbdbfa9cb52596c58a"
+    redirect_uri = "http://localhost:8080/callback"
+    scope = "user-read-playback-state user-modify-playback-state user-read-currently-playing streaming"
+    
+    auth_url = (
+        f"https://accounts.spotify.com/authorize?"
+        f"client_id={client_id}&"
+        f"response_type=code&"
+        f"redirect_uri={redirect_uri}&"
+        f"scope={scope.replace(' ', '%20')}&"
+        f"show_dialog=true"
+    )
+    
+    return jsonify({
+        'url': auth_url,
+        'message': 'Visit this URL to authorize Spotify access'
+    })
 
 # ============================================================
 # STARTUP

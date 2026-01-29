@@ -1,85 +1,60 @@
 "use client"
 
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface EmptyGameLibraryProps {
-  onOpenSettings?: () => void
+	onOpenSettings?: () => void
+	title?: string
+	subtitle?: string
 }
 
-export default function EmptyGameLibrary({ onOpenSettings }: EmptyGameLibraryProps) {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center px-8 py-20">
-      {/* Icon */}
-      <div className="relative mb-8">
-        <div className="w-32 h-32 rounded-full bg-seezee-red/10 flex items-center justify-center border-2 border-seezee-red/30">
-          <svg
-            className="w-16 h-16 text-seezee-red/70"
-            fill="none"
-            strokeWidth="2"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
-          </svg>
-        </div>
-        {/* Animated pulse ring */}
-        <div className="absolute inset-0 rounded-full border-2 border-seezee-red/50 animate-ping"></div>
-      </div>
+export default function EmptyGameLibrary({
+	onOpenSettings,
+	title = "No games found",
+	subtitle = "Connect to your PC and add folders to populate the library.",
+}: EmptyGameLibraryProps) {
+	const router = useRouter()
 
-      {/* Message */}
-      <h2 className="text-3xl font-bold text-white mb-3">No Games Found</h2>
-      <p className="text-white/60 text-center max-w-md mb-8">
-        Connect to your PC to sync your Steam library and start playing your games on SeeZee.
-      </p>
+	const handleOpen = () => {
+		if (onOpenSettings) onOpenSettings()
+		else router.push("/settings")
+	}
 
-      {/* Steps */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6 max-w-lg mb-8">
-        <h3 className="text-seezee-red font-semibold mb-4">Quick Setup:</h3>
-        <ol className="space-y-3 text-white/70 text-sm">
-          <li className="flex gap-3">
-            <span className="text-seezee-red font-bold">1.</span>
-            <span>Run seezee_server.py on your gaming PC</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="text-seezee-red font-bold">2.</span>
-            <span>Make sure your Pi and PC are on the same network</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="text-seezee-red font-bold">3.</span>
-            <span>Go to Settings and enter your PC's IP address</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="text-seezee-red font-bold">4.</span>
-            <span>Add game library folders on your PC</span>
-          </li>
-        </ol>
-      </div>
+	return (
+		<div className="relative flex-1 flex items-center justify-center px-6 py-10 z-10">
+			<div className="w-full max-w-xl rounded-2xl border border-white/10 bg-white/5 p-6">
+				<div className="flex items-start gap-4">
+					<div className="h-14 w-14 rounded-2xl bg-seezee-red/20 border border-seezee-red/30 flex items-center justify-center text-2xl">
+						📁
+					</div>
+					<div className="flex-1">
+						<h2 className="text-white text-xl font-bold">{title}</h2>
+						<p className="text-white/50 text-sm mt-1">{subtitle}</p>
+					</div>
+				</div>
 
-      {/* Action button */}
-      {onOpenSettings ? (
-        <button
-          onClick={onOpenSettings}
-          className="px-8 py-4 bg-seezee-red text-white rounded-xl font-bold text-lg hover:shadow-glow transition-all transform hover:scale-105"
-        >
-          Open Settings
-        </button>
-      ) : (
-        <Link
-          href="/settings"
-          className="px-8 py-4 bg-seezee-red text-white rounded-xl font-bold text-lg hover:shadow-glow transition-all transform hover:scale-105 inline-block"
-        >
-          Open Settings
-        </Link>
-      )}
+				<div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<button
+						type="button"
+						onClick={handleOpen}
+						className="w-full px-4 py-3 rounded-xl bg-seezee-red text-white font-semibold hover:bg-seezee-red-dark transition-colors"
+					>
+						Open Settings
+					</button>
+					<button
+						type="button"
+						onClick={() => router.push("/dashboard")}
+						className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/70 font-semibold hover:bg-white/10 transition-colors"
+					>
+						Back to Hub
+					</button>
+				</div>
 
-      {/* Additional help */}
-      <p className="text-white/40 text-sm mt-6">
-        Need help? Check the <span className="text-seezee-red">SETUP_GUIDE.md</span>
-      </p>
-    </div>
-  )
+				<div className="mt-4 text-xs text-white/40">
+					Tip: Make sure the PC server is running, then add a folder in Settings.
+				</div>
+			</div>
+		</div>
+	)
 }
+

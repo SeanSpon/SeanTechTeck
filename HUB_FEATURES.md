@@ -33,7 +33,7 @@ Your Pi is now a **full control hub** with:
 │  │  - Quick access API              │   │
 │  └──────────────────────────────────┘   │
 │  ┌──────────────────────────────────┐   │
-│  │  seezee_agent.py (port 7777)     │   │
+│  │  seezee_agent.py (port 5050)     │   │
 │  │  - System stats (CPU/GPU/RAM)    │   │
 │  └──────────────────────────────────┘   │
 └─────────────────────────────────────────┘
@@ -137,7 +137,9 @@ pip install psutil flask flask-cors pynvml
 ```bash
 python seezee_agent.py
 ```
-It will start on port 7777 and show its IP.
+It will start on port 5050.
+
+Tip: You can now add/test the PC directly from the Monitor page UI.
 
 **Step 3: Add to config**
 Edit `seezee_config.json`:
@@ -149,7 +151,7 @@ Edit `seezee_config.json`:
       "name": "Gaming PC",
       "type": "pc",
       "ip": "10.34.43.145",
-      "port": 7777,
+      "port": 5050,
       "enabled": true,
       "monitorStats": true
     }
@@ -209,7 +211,7 @@ Pi → PC bridge for scene control.
 ```
 desktop pi hub/
 ├── seezee_server.py       ← PC server (port 5555)
-├── seezee_agent.py        ← PC monitoring agent (port 7777)
+├── seezee_agent.py        ← PC monitoring agent (port 5050)
 ├── seezee_config.json     ← Your config
 ├── launch-kiosk.sh        ← Pi launcher script
 ├── KIOSK_SETUP.md         ← Kiosk instructions
@@ -321,7 +323,7 @@ cd ..
       "name": "Gaming PC",
       "type": "pc",
       "ip": "10.34.43.145",
-      "port": 7777,
+      "port": 5050,
       "enabled": true,
       "monitorStats": true
     }
@@ -348,8 +350,8 @@ cd ..
 
 ### System Monitor shows "No Devices"?
 - Run `seezee_agent.py` on your PC
-- Make sure port 7777 is open in firewall
-- Add device to `devices` array in config
+- Make sure port 5050 is open in firewall
+- Add device from the Monitor page (or add it to `devices` in config)
 - Check agent IP matches config IP
 
 ### Can't launch apps from Pi?
@@ -398,9 +400,11 @@ cd ..
 | `/api/launch-app` | POST | Launch manual app/URL |
 | `/api/system-stats` | GET | PC's own stats |
 | `/api/devices` | GET | All devices + their stats |
+| `/api/devices` | POST | Add a device for monitoring |
+| `/api/devices/test` | POST | Test agent connectivity |
 | `/api/config` | GET | Full config |
 
-### Monitoring Agent (port 7777)
+### Monitoring Agent (port 5050)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
