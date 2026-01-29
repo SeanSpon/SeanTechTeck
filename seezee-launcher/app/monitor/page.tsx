@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import TopBar from "@/components/TopBar"
 import ReactiveBackground from "@/components/ReactiveBackground"
@@ -26,27 +26,51 @@ export default function SystemMonitor() {
   const router = useRouter()
   const [devices, setDevices] = useState<DeviceStats[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { pcIpAddress } = useConnectionStore()
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { pcIpAddress, pcPort, getServerUrl } = useConnectionStore()
+
+  const getMonitorBaseUrl = useCallback(() => {
+    if (pcIpAddress) return getServerUrl()
+    if (typeof window !== 'undefined') {
+      return `http://${window.location.hostname}:${pcPort || 5555}`
+    }
+    return ''
+  }, [pcIpAddress, pcPort, getServerUrl])
+
+  const loadDevices = useCallback(async () => {
+    const baseUrl = getMonitorBaseUrl()
+    if (!baseUrl) {
+      setDevices([])
+      setIsLoading(false)
+      setErrorMessage(null)
+      return
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/api/devices`)
+      if (!response.ok) {
+        throw new Error(`Server error (${response.status})`)
+      }
+      const data = await response.json()
+      setDevices(data.devices || [])
+      setErrorMessage(null)
+    } catch (error) {
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        setErrorMessage('Server unreachable')
+      } else {
+        console.error('Failed to load devices:', error)
+        setErrorMessage(error instanceof Error ? error.message : 'Failed to load devices')
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [getMonitorBaseUrl])
 
   useEffect(() => {
     loadDevices()
     const interval = setInterval(loadDevices, 2000) // Poll every 2 seconds
     return () => clearInterval(interval)
-  }, [pcIpAddress])
-
-  const loadDevices = async () => {
-    if (!pcIpAddress) return
-
-    try {
-      const response = await fetch(`http://${pcIpAddress}:5555/api/devices`)
-      const data = await response.json()
-      setDevices(data.devices || [])
-      setIsLoading(false)
-    } catch (error) {
-      console.error('Failed to load devices:', error)
-      setIsLoading(false)
-    }
-  }
+  }, [loadDevices])
 
   const getStatusColor = (percent: number) => {
     if (percent >= 90) return 'text-red-400'
@@ -74,6 +98,11 @@ export default function SystemMonitor() {
           <p className="text-white/50 text-sm">
             {devices.length} device{devices.length !== 1 ? 's' : ''}
           </p>
+          {errorMessage && (
+            <p className="text-red-400 text-xs mt-1">
+              {errorMessage}
+            </p>
+          )}
         </div>
 
         {/* Device Grid */}
@@ -157,15 +186,25 @@ export default function SystemMonitor() {
 
           {devices.length === 0 && !isLoading && (
             <div className="glass rounded-2xl p-12 text-center">
-              <h3 className="text-white text-xl font-bold mb-2">No Devices Configured</h3>
-              <p className="text-white/50 mb-6">
-                Install and run the SeeZee Agent on your PCs to monitor system stats
-              </p>
+              {!pcIpAddress ? (
+                <>
+                  <h3 className="text-white text-xl font-bold mb-2">Server IP not set</h3>
+                  <p className="text-white/50 mb-6">
+                    Set the SeeZee server IP (the machine running <code className="text-seezee-red">seezee_server.py</code>).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-white text-xl font-bold mb-2">No Devices Configured</h3>
+                  <p className="text-white/50 mb-6">
+                    Install and run the SeeZee Agent on your PCs, then add their IPs to <code className="text-seezee-red">seezee_config.json</code>.
+                  </p>
+                </>
+              )}
               <div className="glass rounded-xl p-4 text-left text-sm text-white/70 max-w-xl mx-auto">
-                <p className="mb-2">1. Copy <code className="text-seezee-red">seezee_agent.py</code> to your PC</p>
-                <p className="mb-2">2. Run: <code className="text-seezee-red">pip install psutil flask flask-cors</code></p>
-                <p className="mb-2">3. Run: <code className="text-seezee-red">python seezee_agent.py</code></p>
-                <p>4. Add device IP to <code className="text-seezee-red">seezee_config.json</code></p>
+                <p className="mb-2">1. On PC: <code className="text-seezee-red">pip install psutil flask flask-cors</code></p>
+                <p className="mb-2">2. Run: <code className="text-seezee-red">python seezee_agent.py</code> (port 5050)</p>
+                <p>3. Add device IP + port 5050 in <code className="text-seezee-red">seezee_config.json</code></p>
               </div>
             </div>
           )}
@@ -173,7 +212,7 @@ export default function SystemMonitor() {
       </main>
 
       <footer className="relative flex-shrink-0 px-6 py-2 text-center text-white/30 text-xs z-10">
-        Updates every 2s
+        Updates every 2s • Server: {pcIpAddress ? `${pcIpAddress}:${pcPort}` : 'not set'}
       </footer>
     </div>
   )

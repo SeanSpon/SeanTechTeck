@@ -97,5 +97,9 @@
   },
   "manualApps": [],
   "manualUrls": [],
-  "devices": []
+  "devices": [],
+  "spotify": {
+    "accessToken": "4f479746f75b41a4bbe91d3a44b251fe",
+    "lastUpdated": "2026-01-29T01:02:23.363606Z"
+  }
 }
